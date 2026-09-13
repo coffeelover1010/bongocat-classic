@@ -197,7 +197,8 @@ local function ApplyCat(cat)
     local conditionalChatHidden = cat.location == "chat" and location.onlyWhileEditing and not ChatInputOpen()
     local previewingConfig = config and config:IsShown()
     local isCompanion = activeLocation == "spell" and cat.location == companionLocation
-    local shouldShow = previewingConfig or (db.shown and location.enabled and (cat.location == activeLocation or isCompanion) and not conditionalChatHidden)
+    local spellPlaying = cat.location == "spell" and GetTime() < spellPlayback.visibleUntil
+    local shouldShow = previewingConfig or (db.shown and location.enabled and (cat.location == activeLocation or isCompanion or spellPlaying) and not conditionalChatHidden)
     if shouldShow then cat:Show() else cat:Hide() end
     if cat.kind == "spell" then
         if shouldShow then cat.spellIconFrame:Show() else cat.spellIconFrame:Hide() end
@@ -824,7 +825,10 @@ Controller:SetScript("OnUpdate", function()
     end
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
-        if db.fade.enabled and cat:IsShown() and not cat.dragging and not (config and config:IsShown()) then
+        if cat.location == "spell" and now < spellPlayback.visibleUntil then
+            cat.lastActivity = now
+            cat:SetAlpha(BaseAlpha(cat))
+        elseif db.fade.enabled and cat:IsShown() and not cat.dragging and not (config and config:IsShown()) then
             local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
             cat:SetAlpha(BaseAlpha(cat) * math.max(0, math.min(1, 1 - fadeProgress)))
             if (cat.kind == "action" or cat.kind == "chat") and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
