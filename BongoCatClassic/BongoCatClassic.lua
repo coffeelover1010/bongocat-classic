@@ -213,6 +213,7 @@ local function ApplyCat(cat)
     end
     if cat.kind == "spell" then
         cat:EnableMouse(config and config:IsShown())
+        cat.spellIconFrame:EnableMouse(config and config:IsShown())
     elseif cat.kind == "chat" or cat.kind == "action" then
         cat:EnableMouse(db.shown and location.enabled and not location.locked)
     end
@@ -251,6 +252,23 @@ local function CreateCat(key, location, kind)
         cat.spellIconFrame.border:SetPoint("TOPLEFT", cat.spellIconFrame, "TOPLEFT", -5, 5)
         cat.spellIconFrame.border:SetPoint("BOTTOMRIGHT", cat.spellIconFrame, "BOTTOMRIGHT", 5, -5)
         cat.spellIconFrame.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+        cat.spellIconFrame:SetMovable(true)
+        cat.spellIconFrame:EnableMouse(false)
+        cat.spellIconFrame:RegisterForDrag("LeftButton")
+        cat.spellIconFrame:SetScript("OnDragStart", function(self)
+            if config and config:IsShown() then self.dragging = true; self:StartMoving() end
+        end)
+        cat.spellIconFrame:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            self.dragging = false
+            local scale = UIParent:GetEffectiveScale()
+            local x, y = self:GetCenter()
+            local parentX, parentY = UIParent:GetCenter()
+            local location = db.locations.spell
+            location.x = math.floor((x - parentX) / scale + 0.5)
+            location.y = math.floor((y - parentY) / scale + 0.5)
+            ApplyCat(cat)
+        end)
     end
     if kind == "chat" or kind == "action" or kind == "spell" then
         cat:SetMovable(true)
@@ -259,10 +277,6 @@ local function CreateCat(key, location, kind)
         cat:SetScript("OnDragStart", function(self)
             if self.kind == "spell" then
                 if not (config and config:IsShown()) then return end
-                local catX, catY = self:GetCenter()
-                local iconX, iconY = self.spellIconFrame:GetCenter()
-                self.spellDragOffsetX = catX - iconX
-                self.spellDragOffsetY = catY - iconY
                 self.dragging = true
                 self.lastActivity = GetTime()
                 SetCatAlpha(self, BaseAlpha(self))
@@ -281,11 +295,10 @@ local function CreateCat(key, location, kind)
             local location = db.locations[self.location]
             if self.kind == "spell" then
                 local scale = UIParent:GetEffectiveScale()
-                local x, y = self:GetCenter()
-                local parentX, parentY = UIParent:GetCenter()
-                location.x = math.floor((x - parentX - (self.spellDragOffsetX or 0)) / scale + 0.5)
-                location.y = math.floor((y - parentY - (self.spellDragOffsetY or 0)) / scale + 0.5)
-                self.spellDragOffsetX, self.spellDragOffsetY = nil, nil
+                local catX = self:GetCenter()
+                local iconX = self.spellIconFrame:GetCenter()
+                location.catOffsetX = math.floor((catX - iconX) / scale + 0.5)
+                location.catOffsetY = math.floor((self:GetBottom() - self.spellIconFrame:GetTop()) / scale + 0.5)
                 ApplyCat(self)
             elseif self.kind == "chat" then
                 local scale = ChatFrame1:GetEffectiveScale()
@@ -744,7 +757,7 @@ local function OpenConfig()
             spellSettingsExpanded = false
             config:Hide(); config = nil; OpenConfig()
         end)
-        Label(config, "Spell cat — drag it while this window is open", 18, -84)
+        Label(config, "Drag the cat or icon separately while this window is open.", 18, -84)
         Checkbox(config, "Enabled", 18, -106, db.locations.spell.enabled, function(value) db.locations.spell.enabled = value; ApplyAll() end)
         CycleSizeButton(config, "spell", 150, -108, #SIZES)
         ColourButton(config, "spell", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -138)
