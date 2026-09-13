@@ -1129,7 +1129,7 @@ local function OpenConfig()
 end
 
 local function Help()
-    Print("Commands: |cffffffff/bc config|r, |cffffffff/bc show|hide|toggle|r, |cffffffff/bc test|r, |cffffffff/bc reset|r, |cffffffff/bc credits|r")
+    Print("Commands: |cffffffff/bc config|r, |cffffffff/bc show|r, |cffffffff/bc hide|r, |cffffffff/bc toggle|r, |cffffffff/bc test|r, |cffffffff/bc reset|r, |cffffffff/bc credits|r")
 end
 
 SLASH_BONGOCATCLASSIC1, SLASH_BONGOCATCLASSIC2 = "/bongocat", "/bc"

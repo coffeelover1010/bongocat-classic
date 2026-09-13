@@ -2,7 +2,7 @@
 ## Title: BongoCat Classic
 ## Notes: A small animated cat that bops along while you type in chat.
 ## Author: Videocat
-## Version: 0.34.0
+## Version: 0.34.1
 ## SavedVariables: BongoCatClassicDB
 
 BongoCatClassic.lua
