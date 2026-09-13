@@ -102,7 +102,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        nameplate = { enabled = false, size = 1, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        nameplate = { enabled = false, showOnSelf = false, size = 1, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         castbar = { enabled = false, size = 2, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, iconBorderStyle = "quickslot", catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleStyle = "oval", bubbleFillColour = FILL_COLOURS.cream, bubbleOutlineColour = OUTLINE_COLOURS.ink, bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
@@ -271,12 +271,17 @@ local function TargetNamePlate()
     end
 end
 
+local function NameplateTargetAllowed(location)
+    if not UnitExists("target") then return false end
+    return location.showOnSelf or not UnitIsUnit("target", "player")
+end
+
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
     local textureSize = SIZE_NAMES[location.size]
     local namePlate = cat.kind == "nameplate" and TargetNamePlate() or nil
-    local hasNameplateTarget = cat.kind == "nameplate" and UnitExists("target")
+    local hasNameplateTarget = cat.kind == "nameplate" and NameplateTargetAllowed(location)
     local namePlateFrame = namePlate and (namePlate.UnitFrame or namePlate) or nil
     local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or (cat.kind == "castbar" and CastingBar() or (namePlateFrame or (hasNameplateTarget and TargetFrame) or MainMenuBar)))
     cat:SetSize(size.width, size.height)
@@ -528,7 +533,7 @@ local function Trigger(locations, fromSequence)
 end
 
 local function TriggerNameplate()
-    if not db.locations.nameplate.enabled or not UnitExists("target") then return end
+    if not db.locations.nameplate.enabled or not NameplateTargetAllowed(db.locations.nameplate) then return end
     local now = GetTime()
     if now - lastNameplateInput < 0.10 then return end
     lastNameplateInput = now
@@ -987,10 +992,11 @@ local function OpenConfig()
         Label(config, "Nameplate cat — sits above your selected target.", 18, -84)
         Checkbox(config, "Enabled", 18, -108, db.locations.nameplate.enabled, function(value) db.locations.nameplate.enabled = value; ApplyAll() end)
         CycleSizeButton(config, "nameplate", 150, -110, 3)
-        Label(config, "Cast-bar cat — taps while you cast or channel.", 18, -150)
-        Checkbox(config, "Enabled", 18, -174, db.locations.castbar.enabled, function(value) db.locations.castbar.enabled = value; ApplyAll() end)
-        CycleSizeButton(config, "castbar", 150, -176, 3)
-        Label(config, "Both are trial features and use your cat colours.", 18, -216)
+        Checkbox(config, "Show when targeting self", 18, -136, db.locations.nameplate.showOnSelf, function(value) db.locations.nameplate.showOnSelf = value; ApplyAll() end)
+        Label(config, "Cast-bar cat — taps while you cast or channel.", 18, -178)
+        Checkbox(config, "Enabled", 18, -202, db.locations.castbar.enabled, function(value) db.locations.castbar.enabled = value; ApplyAll() end)
+        CycleSizeButton(config, "castbar", 150, -204, 3)
+        Label(config, "Both are trial features and use your cat colours.", 18, -244)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
