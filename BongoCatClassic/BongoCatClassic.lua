@@ -5,14 +5,23 @@ local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 
 local SIZE_NAMES = { "Small", "Medium", "Large" }
+local FILL_COLOURS = {
+    cream = { label = "Cream", r = 1.00, g = 0.96, b = 0.86, a = 1 },
+    white = { label = "White", r = 1.00, g = 1.00, b = 1.00, a = 1 },
+    grey = { label = "Grey", r = 0.82, g = 0.82, b = 0.82, a = 1 },
+    none = { label = "None", r = 1.00, g = 1.00, b = 1.00, a = 0 },
+}
+local FILL_ORDER = { "cream", "white", "grey", "none" }
+local LAYER_NAMES = { MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog", TOOLTIP = "On top" }
+local LAYER_ORDER = { "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = { { width = 72, height = 36 }, { width = 108, height = 54 }, { width = 150, height = 75 } }
 local DEFAULTS = {
-    layoutVersion = 3,
+    layoutVersion = 4,
     shown = true,
     locations = {
-        chat = { enabled = true, size = 2 },
-        action = { enabled = true, size = 2, locked = false, placed = false, x = 0, y = 0 },
+        chat = { enabled = true, size = 2, fill = "cream", strata = "TOOLTIP" },
+        action = { enabled = true, size = 2, locked = false, placed = false, x = 0, y = 0, fill = "cream", strata = "TOOLTIP" },
     },
 }
 
@@ -22,7 +31,7 @@ end
 
 local function CopyDefaults()
     BongoCatClassicDB = BongoCatClassicDB or {}
-    local migrateLayout = BongoCatClassicDB.layoutVersion ~= DEFAULTS.layoutVersion
+    local migrateLayout = (BongoCatClassicDB.layoutVersion or 0) < 3
     if BongoCatClassicDB.shown == nil then BongoCatClassicDB.shown = DEFAULTS.shown end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
@@ -40,6 +49,7 @@ local function SetPose(cat, pose)
     -- 2048x512 atlas: three 512px-wide poses; the cat occupies its middle half vertically.
     local left = pose * 0.25
     cat.art:SetTexCoord(left, left + 0.25, 0.25, 0.75)
+    cat.fill:SetTexCoord(left, left + 0.25, 0.25, 0.75)
 end
 
 local function ApplyCat(cat)
@@ -47,6 +57,10 @@ local function ApplyCat(cat)
     local size = SIZES[location.size]
     local target = cat.kind == "chat" and ChatFrame1 or MainMenuBar
     cat:SetSize(size.width, size.height)
+    cat:SetFrameStrata(location.strata or "TOOLTIP")
+    cat:SetFrameLevel(100)
+    local fill = FILL_COLOURS[location.fill] or FILL_COLOURS.cream
+    cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
     -- UIParent and Blizzard frames may use different scales. Match the target's scale so
     -- a "medium" cat remains medium beside the frame it is attached to.
     cat:SetScale(target:GetEffectiveScale() / UIParent:GetEffectiveScale())
@@ -60,6 +74,7 @@ local function ApplyCat(cat)
         -- The cat's paws overlap the upper edge of the action bar.
         cat:SetPoint("BOTTOM", MainMenuBar, "TOP", 0, 0)
     end
+    if cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
     if db.shown and location.enabled then cat:Show() else cat:Hide() end
 end
 
@@ -70,6 +85,9 @@ end
 local function CreateCat(key, location, kind)
     local cat = CreateFrame("Frame", addonName .. key, UIParent)
     cat.location, cat.kind, cat.lastHit = location, kind, 0
+    cat.fill = cat:CreateTexture(nil, "BACKGROUND")
+    cat.fill:SetAllPoints(cat)
+    cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill.tga")
     cat.art = cat:CreateTexture(nil, "ARTWORK")
     cat.art:SetAllPoints(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
@@ -149,10 +167,46 @@ local function CycleSizeButton(parent, name, x, y)
     end)
 end
 
+local function CycleFillButton(parent, name, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(100, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText("Fill: " .. FILL_COLOURS[db.locations[name].fill].label)
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        local location = db.locations[name]
+        for index, key in ipairs(FILL_ORDER) do
+            if key == location.fill then location.fill = FILL_ORDER[index % #FILL_ORDER + 1]; break end
+        end
+        Refresh()
+        ApplyAll()
+    end)
+end
+
+local function CycleLayerButton(parent, name, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(125, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText("Layer: " .. LAYER_NAMES[db.locations[name].strata])
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        local location = db.locations[name]
+        for index, key in ipairs(LAYER_ORDER) do
+            if key == location.strata then location.strata = LAYER_ORDER[index % #LAYER_ORDER + 1]; break end
+        end
+        Refresh()
+        ApplyAll()
+    end)
+end
+
 local function OpenConfig()
     if config then config:Show(); return end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 260)
+    config:SetSize(420, 330)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetMovable(true); config:EnableMouse(true); config:RegisterForDrag("LeftButton")
@@ -167,15 +221,20 @@ local function OpenConfig()
         db.locations.chat.enabled = value; ApplyAll()
     end)
     CycleSizeButton(config, "chat", 190, -102)
-    Label(config, "Action cat — reacts to player actions", 18, -138)
-    Checkbox(config, "Enabled", 18, -160, db.locations.action.enabled, function(value)
+    CycleFillButton(config, "chat", 18, -132)
+    CycleLayerButton(config, "chat", 130, -132)
+    Label(config, "Action cat — reacts to player actions", 18, -174)
+    Checkbox(config, "Enabled", 18, -196, db.locations.action.enabled, function(value)
         db.locations.action.enabled = value; ApplyAll()
     end)
-    Checkbox(config, "Lock position", 110, -160, db.locations.action.locked, function(value)
+    Checkbox(config, "Lock position", 110, -196, db.locations.action.locked, function(value)
         db.locations.action.locked = value
+        ApplyAll()
     end)
-    CycleSizeButton(config, "action", 238, -162)
-    Label(config, "Drag the action cat directly; lock it here when positioned.", 18, -196)
+    CycleSizeButton(config, "action", 238, -198)
+    CycleFillButton(config, "action", 18, -228)
+    CycleLayerButton(config, "action", 130, -228)
+    Label(config, "Drag the action cat directly; lock it when positioned.", 18, -264)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
