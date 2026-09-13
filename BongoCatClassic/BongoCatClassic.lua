@@ -35,6 +35,7 @@ local LAYER_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCRE
 local FADE_DELAYS = { 1, 2, 5, 10 }
 local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20, 0.25, 0.33, 0.50 }
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = {
     { width = 42, height = 21 },
@@ -47,7 +48,7 @@ local DEFAULTS = {
     layoutVersion = 7,
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
-    actionSequence = { minimum = 5, maximum = 5 },
+    actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -75,6 +76,7 @@ local function CopyDefaults()
     end
     if BongoCatClassicDB.actionSequence.minimum == nil then BongoCatClassicDB.actionSequence.minimum = DEFAULTS.actionSequence.minimum end
     if BongoCatClassicDB.actionSequence.maximum == nil then BongoCatClassicDB.actionSequence.maximum = DEFAULTS.actionSequence.maximum end
+    if BongoCatClassicDB.actionSequence.interval == nil then BongoCatClassicDB.actionSequence.interval = DEFAULTS.actionSequence.interval end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
@@ -224,7 +226,7 @@ local function TriggerGlobal()
     Trigger({ "action" })
     local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
     globalSequence.remaining = math.max(globalSequence.remaining, steps - 1)
-    globalSequence.nextAt = now + 0.12
+    globalSequence.nextAt = now + db.actionSequence.interval
 end
 
 local function OnChatEdited(editBox)
@@ -411,6 +413,25 @@ local function CycleSequenceButton(parent, x, y, key, label)
     end)
 end
 
+local function CycleSequenceIntervalButton(parent, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(150, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(string.format("Tap interval: %.2fs", db.actionSequence.interval))
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        for index, value in ipairs(SEQUENCE_INTERVALS) do
+            if value == db.actionSequence.interval then
+                db.actionSequence.interval = SEQUENCE_INTERVALS[index % #SEQUENCE_INTERVALS + 1]
+                break
+            end
+        end
+        Refresh()
+    end)
+end
+
 local function OpenConfig()
     if config then
         config:Show()
@@ -418,7 +439,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 490)
+    config:SetSize(420, 520)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -465,6 +486,7 @@ local function OpenConfig()
     CycleFadeButton(config, 190, -386, "Fade time", FADE_DURATIONS, "duration", "s")
     CycleSequenceButton(config, 18, -416, "minimum", "Sequence min")
     CycleSequenceButton(config, 180, -416, "maximum", "Sequence max")
+    CycleSequenceIntervalButton(config, 18, -446)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
@@ -523,7 +545,7 @@ Controller:SetScript("OnUpdate", function()
     if globalSequence.remaining > 0 and now >= globalSequence.nextAt then
         Trigger({ "action" }, true)
         globalSequence.remaining = globalSequence.remaining - 1
-        globalSequence.nextAt = now + 0.12
+        globalSequence.nextAt = now + db.actionSequence.interval
     end
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
