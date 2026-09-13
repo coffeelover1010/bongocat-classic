@@ -43,6 +43,8 @@ local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20 }
 local SPELL_HOLD_DURATIONS = { 0.5, 1.0, 1.5, 2.0, 3.0, 5.0 }
 local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
+local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
+local SPELL_OFFSETS = { -30, -20, -10, 0, 10, 20, 30 }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -68,7 +70,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, size = 7, x = 0, y = -80, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconZoom = 0, iconBorder = true, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -186,8 +188,11 @@ local function ApplyCat(cat)
         cat.spellIconFrame:SetFrameLevel(10)
         cat.spellIconFrame:ClearAllPoints()
         cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", location.x or 0, location.y or -80)
+        local zoom = location.iconZoom or 0
+        cat.spellIconFrame.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+        cat.spellIconFrame.border:SetShown(location.iconBorder ~= false)
         -- Present a WeakAuras-style spell icon slightly below screen centre; the cat's paws overlap it.
-        cat:SetPoint("BOTTOM", cat.spellIconFrame, "TOP", 0, -10)
+        cat:SetPoint("BOTTOM", cat.spellIconFrame, "TOP", location.catOffsetX or 0, location.catOffsetY or -10)
     elseif location.placed then
         cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
     else
@@ -230,6 +235,10 @@ local function CreateCat(key, location, kind)
         cat.spellIconFrame.icon = cat.spellIconFrame:CreateTexture(nil, "ARTWORK")
         cat.spellIconFrame.icon:SetAllPoints(cat.spellIconFrame)
         cat.spellIconFrame.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+        cat.spellIconFrame.border = cat.spellIconFrame:CreateTexture(nil, "OVERLAY")
+        cat.spellIconFrame.border:SetPoint("TOPLEFT", cat.spellIconFrame, "TOPLEFT", -5, 5)
+        cat.spellIconFrame.border:SetPoint("BOTTOMRIGHT", cat.spellIconFrame, "BOTTOMRIGHT", 5, -5)
+        cat.spellIconFrame.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
     end
     if kind == "chat" or kind == "action" or kind == "spell" then
         cat:SetMovable(true)
@@ -549,6 +558,42 @@ local function CycleSpellOpacityButton(parent, x, y)
     end)
 end
 
+local function CycleSpellIconButton(parent, x, y, key, label, values, formatValue)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(150, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(label .. ": " .. formatValue(db.locations.spell[key]))
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        local location = db.locations.spell
+        for index, value in ipairs(values) do
+            if value == location[key] then
+                location[key] = values[index % #values + 1]
+                break
+            end
+        end
+        ApplyAll()
+        Refresh()
+    end)
+end
+
+local function SpellBorderButton(parent, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(150, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(db.locations.spell.iconBorder ~= false and "Icon border: on" or "Icon border: off")
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        db.locations.spell.iconBorder = not (db.locations.spell.iconBorder ~= false)
+        ApplyAll()
+        Refresh()
+    end)
+end
+
 local function CycleSequenceButton(parent, x, y, key, label, sequence)
     sequence = sequence or db.actionSequence
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
@@ -618,7 +663,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 440 or 550))
+    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 500 or 550))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -647,12 +692,16 @@ local function OpenConfig()
         ColourButton(config, "spell", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -138)
         CycleLayerButton(config, "spell", 18, -168)
         CycleSpellOpacityButton(config, 180, -168)
-        Label(config, "Spell sequence", 18, -206)
-        CycleSequenceButton(config, 18, -228, "minimum", "Sequence min", db.spellSequence)
-        CycleSequenceButton(config, 180, -228, "maximum", "Sequence max", db.spellSequence)
-        CycleSequenceIntervalButton(config, 18, -258, db.spellSequence)
-        CycleSpellHoldButton(config, 180, -258)
-        Label(config, "Uses the shared fade mode and timing.", 18, -296)
+        Label(config, "Spell icon", 18, -206)
+        CycleSpellIconButton(config, 18, -228, "iconZoom", "Icon zoom", SPELL_ICON_ZOOMS, function(value) return string.format("%d%%", value * 100) end)
+        SpellBorderButton(config, 180, -228)
+        CycleSpellIconButton(config, 18, -258, "catOffsetX", "Cat offset X", SPELL_OFFSETS, function(value) return value end)
+        CycleSpellIconButton(config, 180, -258, "catOffsetY", "Cat offset Y", SPELL_OFFSETS, function(value) return value end)
+        Label(config, "Spell sequence", 18, -296)
+        CycleSequenceButton(config, 18, -318, "minimum", "Sequence min", db.spellSequence)
+        CycleSequenceButton(config, 180, -318, "maximum", "Sequence max", db.spellSequence)
+        CycleSequenceIntervalButton(config, 18, -348, db.spellSequence)
+        CycleSpellHoldButton(config, 180, -348)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
