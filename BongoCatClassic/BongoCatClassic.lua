@@ -36,7 +36,7 @@ local DEFAULTS = {
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
     locations = {
-        chat = { enabled = true, size = 3, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        chat = { enabled = true, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
@@ -82,9 +82,9 @@ local function ApplyCat(cat)
     cat:SetFrameStrata(location.strata or "TOOLTIP")
     cat:SetFrameLevel(100)
     cat:SetAlpha(1)
-    local fill = FILL_COLOURS[location.fill] or FILL_COLOURS.cream
+    local fill = location.fillColour or FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
-    local outline = OUTLINE_COLOURS[location.outline] or OUTLINE_COLOURS.ink
+    local outline = location.outlineColour or OUTLINE_COLOURS[location.outline] or OUTLINE_COLOURS.ink
     cat.art:SetVertexColor(outline.r, outline.g, outline.b, outline.a)
     -- UIParent and Blizzard frames may use different scales. Match the target's scale so
     -- a "medium" cat remains medium beside the frame it is attached to.
@@ -92,14 +92,14 @@ local function ApplyCat(cat)
     cat:ClearAllPoints()
     if cat.kind == "chat" then
         -- Keep the chat cat's attachment point inside the chat window's lower 20% band.
-        cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", math.floor(ChatFrame1:GetWidth() * 0.04), math.floor(ChatFrame1:GetHeight() * 0.20))
+        cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", location.x, location.y)
     elseif location.placed then
         cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
     else
         -- The cat's paws overlap the upper edge of the action bar.
         cat:SetPoint("BOTTOM", MainMenuBar, "TOP", 0, 0)
     end
-    if cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
+    if cat.kind == "chat" or cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
     if db.shown and location.enabled then cat:Show() else cat:Hide() end
 end
 
@@ -116,19 +116,29 @@ local function CreateCat(key, location, kind)
     cat.art = cat:CreateTexture(nil, "ARTWORK")
     cat.art:SetAllPoints(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
-    if kind == "action" then
+    if kind == "chat" or kind == "action" then
         cat:SetMovable(true)
         cat:EnableMouse(true)
         cat:RegisterForDrag("LeftButton")
         cat:SetScript("OnDragStart", function(self)
-            if not db.locations.action.locked then self:StartMoving() end
+            if not db.locations[self.location].locked then self:StartMoving() end
         end)
         cat:SetScript("OnDragStop", function(self)
             self:StopMovingOrSizing()
-            local scale = UIParent:GetEffectiveScale()
-            db.locations.action.x = math.floor(self:GetLeft() / scale + 0.5)
-            db.locations.action.y = math.floor(self:GetBottom() / scale + 0.5)
-            db.locations.action.placed = true
+            local location = db.locations[self.location]
+            if self.kind == "chat" then
+                local scale = ChatFrame1:GetEffectiveScale()
+                local x = (self:GetLeft() - ChatFrame1:GetLeft()) / scale
+                local y = (self:GetBottom() - ChatFrame1:GetBottom()) / scale
+                location.x = math.max(0, math.min(math.floor(ChatFrame1:GetWidth() * 0.20), math.floor(x + 0.5)))
+                location.y = math.max(0, math.min(math.floor(ChatFrame1:GetHeight() * 0.20), math.floor(y + 0.5)))
+                ApplyCat(self)
+            else
+                local scale = UIParent:GetEffectiveScale()
+                location.x = math.floor(self:GetLeft() / scale + 0.5)
+                location.y = math.floor(self:GetBottom() / scale + 0.5)
+                location.placed = true
+            end
         end)
     end
     SetPose(cat, 0)
@@ -145,7 +155,7 @@ local function Trigger(locations)
                 if cat.location == location then
                     cat.lastActivity = now
                     cat:SetAlpha(1)
-                    if cat.kind == "action" and not db.locations.action.locked then cat:EnableMouse(true) end
+                    if (cat.kind == "action" or cat.kind == "chat") and not db.locations[cat.location].locked then cat:EnableMouse(true) end
                 end
             end
         end
@@ -251,6 +261,41 @@ local function CycleOutlineButton(parent, name, x, y)
     end)
 end
 
+local function ColourButton(parent, name, key, fallback, text, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(135, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    button:SetText(text)
+    button:SetScript("OnClick", function()
+        local location = db.locations[name]
+        local current = location[key] or fallback
+        local original = { r = current.r, g = current.g, b = current.b, a = current.a }
+        local function Changed()
+            local r, g, b = ColorPickerFrame:GetColorRGB()
+            location[key] = { r = r, g = g, b = b, a = ColorPickerFrame:GetColorAlpha() }
+            ApplyAll()
+        end
+        local function Cancelled()
+            location[key] = original
+            ApplyAll()
+        end
+        if ColorPickerFrame.SetupColorPickerAndShow then
+            ColorPickerFrame:SetupColorPickerAndShow({
+                r = current.r, g = current.g, b = current.b, opacity = current.a,
+                hasOpacity = true, swatchFunc = Changed, opacityFunc = Changed, cancelFunc = Cancelled,
+            })
+        else
+            ColorPickerFrame:SetColorRGB(current.r, current.g, current.b)
+            ColorPickerFrame.hasOpacity = true
+            ColorPickerFrame.opacity = current.a
+            ColorPickerFrame.func = Changed
+            ColorPickerFrame.opacityFunc = Changed
+            ColorPickerFrame.cancelFunc = Cancelled
+            ColorPickerFrame:Show()
+        end
+    end)
+end
+
 local function CycleFadeButton(parent, x, y, label, values, key, suffix)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(155, 24)
@@ -270,7 +315,7 @@ end
 local function OpenConfig()
     if config then config:Show(); return end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 455)
+    config:SetSize(420, 430)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetMovable(true); config:EnableMouse(true); config:RegisterForDrag("LeftButton")
@@ -279,34 +324,36 @@ local function OpenConfig()
     config:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 11, top = 11, bottom = 11 } })
     local title = config:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -18); title:SetText("BongoCat Classic placements")
-    Label(config, "The chat cat stays inside the chat window's lower 20% band.", 18, -46)
-    Label(config, "Chat cat — reacts to typing", 18, -78)
-    Checkbox(config, "Enabled", 18, -100, db.locations.chat.enabled, function(value)
+    Label(config, "Chat cat — reacts to typing", 18, -52)
+    Checkbox(config, "Enabled", 18, -74, db.locations.chat.enabled, function(value)
         db.locations.chat.enabled = value; ApplyAll()
     end)
-    CycleSizeButton(config, "chat", 190, -102)
-    CycleFillButton(config, "chat", 18, -132)
-    CycleLayerButton(config, "chat", 130, -132)
-    CycleOutlineButton(config, "chat", 18, -162)
-    Label(config, "Action cat — reacts to player actions", 18, -204)
-    Checkbox(config, "Enabled", 18, -226, db.locations.action.enabled, function(value)
+    Checkbox(config, "Lock position", 110, -74, db.locations.chat.locked, function(value)
+        db.locations.chat.locked = value; ApplyAll()
+    end)
+    CycleSizeButton(config, "chat", 238, -76)
+    ColourButton(config, "chat", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -106)
+    ColourButton(config, "chat", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -106)
+    CycleLayerButton(config, "chat", 18, -136)
+    Label(config, "Action cat — reacts to player actions", 18, -178)
+    Checkbox(config, "Enabled", 18, -200, db.locations.action.enabled, function(value)
         db.locations.action.enabled = value; ApplyAll()
     end)
-    Checkbox(config, "Lock position", 110, -226, db.locations.action.locked, function(value)
+    Checkbox(config, "Lock position", 110, -200, db.locations.action.locked, function(value)
         db.locations.action.locked = value
         ApplyAll()
     end)
-    CycleSizeButton(config, "action", 238, -228)
-    CycleFillButton(config, "action", 18, -258)
-    CycleLayerButton(config, "action", 130, -258)
-    CycleOutlineButton(config, "action", 18, -288)
-    Label(config, "Drag the action cat directly; lock it when positioned.", 18, -324)
-    Checkbox(config, "Fade after inactivity", 18, -354, db.fade.enabled, function(value)
+    CycleSizeButton(config, "action", 238, -202)
+    ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -232)
+    ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -232)
+    CycleLayerButton(config, "action", 18, -262)
+    Label(config, "Drag either cat directly; lock it when positioned.", 18, -298)
+    Checkbox(config, "Fade after inactivity", 18, -328, db.fade.enabled, function(value)
         db.fade.enabled = value
         if not value then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
     end)
-    CycleFadeButton(config, 18, -384, "Fade delay", FADE_DELAYS, "delay", "s")
-    CycleFadeButton(config, 190, -384, "Fade time", FADE_DURATIONS, "duration", "s")
+    CycleFadeButton(config, 18, -358, "Fade delay", FADE_DELAYS, "delay", "s")
+    CycleFadeButton(config, 190, -358, "Fade time", FADE_DURATIONS, "duration", "s")
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
@@ -358,7 +405,7 @@ Controller:SetScript("OnUpdate", function()
         if db.fade.enabled and cat:IsShown() then
             local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
             cat:SetAlpha(math.max(0, math.min(1, 1 - fadeProgress)))
-            if cat.kind == "action" and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
+            if (cat.kind == "action" or cat.kind == "chat") and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
         end
     end
 end)
