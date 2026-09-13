@@ -126,6 +126,11 @@ local function BaseAlpha(cat)
     return 1.0
 end
 
+local function SetCatAlpha(cat, alpha)
+    cat:SetAlpha(alpha)
+    if cat.kind == "spell" and cat.spellIconFrame then cat.spellIconFrame:SetAlpha(alpha) end
+end
+
 local function SetPose(cat, pose)
     -- 2048x512 atlas: three 512px-wide poses; the cat occupies its middle half vertically.
     local left = pose * 0.25
@@ -163,7 +168,7 @@ local function ApplyCat(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
     cat:SetFrameStrata(location.strata or "TOOLTIP")
     cat:SetFrameLevel(cat.kind == "spell" and 20 or 100)
-    cat:SetAlpha(BaseAlpha(cat))
+    SetCatAlpha(cat, BaseAlpha(cat))
     local fill = location.fillColour or FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
     local outline = location.outlineColour or OUTLINE_COLOURS[location.outline] or OUTLINE_COLOURS.ink
@@ -239,12 +244,12 @@ local function CreateCat(key, location, kind)
                 self.spellDragOffsetY = catY - iconY
                 self.dragging = true
                 self.lastActivity = GetTime()
-                self:SetAlpha(BaseAlpha(self))
+                SetCatAlpha(self, BaseAlpha(self))
                 self:StartMoving()
             elseif not db.locations[self.location].locked then
                 self.dragging = true
                 self.lastActivity = GetTime()
-                self:SetAlpha(BaseAlpha(self))
+                SetCatAlpha(self, BaseAlpha(self))
                 self:StartMoving()
             end
         end)
@@ -299,7 +304,7 @@ local function Trigger(locations, fromSequence)
                 if cat.location == location then SetPose(cat, nextPaw); cat.lastHit = now end
                 if cat.location == location then
                     cat.lastActivity = now
-                    cat:SetAlpha(BaseAlpha(cat))
+                    SetCatAlpha(cat, BaseAlpha(cat))
                     if (cat.kind == "action" or cat.kind == "chat") and not db.locations[cat.location].locked then cat:EnableMouse(true) end
                 end
             end
@@ -356,7 +361,7 @@ local function HookChatEditBoxes()
                     for _, cat in pairs(cats) do
                         if cat.location == "chat" then
                             cat.lastActivity = now
-                            cat:SetAlpha(BaseAlpha(cat))
+                            SetCatAlpha(cat, BaseAlpha(cat))
                         end
                     end
                     ApplyAll()
@@ -518,7 +523,7 @@ local function FadeModeButton(parent, x, y)
     Refresh()
     button:SetScript("OnClick", function()
         db.fade.enabled = not db.fade.enabled
-        if not db.fade.enabled then for _, cat in pairs(cats) do cat:SetAlpha(BaseAlpha(cat)) end end
+        if not db.fade.enabled then for _, cat in pairs(cats) do SetCatAlpha(cat, BaseAlpha(cat)) end end
         Refresh()
     end)
 end
@@ -609,7 +614,7 @@ end
 local function OpenConfig()
     if config then
         config:Show()
-        for _, cat in pairs(cats) do cat:SetAlpha(BaseAlpha(cat)) end
+        for _, cat in pairs(cats) do SetCatAlpha(cat, BaseAlpha(cat)) end
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
@@ -617,7 +622,7 @@ local function OpenConfig()
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
-        for _, cat in pairs(cats) do cat:SetAlpha(BaseAlpha(cat)) end
+        for _, cat in pairs(cats) do SetCatAlpha(cat, BaseAlpha(cat)) end
         ApplyAll()
     end)
     config:SetScript("OnHide", function() ApplyAll() end)
@@ -827,10 +832,10 @@ Controller:SetScript("OnUpdate", function()
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
         if cat.location == "spell" and now < spellPlayback.visibleUntil then
             cat.lastActivity = now
-            cat:SetAlpha(BaseAlpha(cat))
+            SetCatAlpha(cat, BaseAlpha(cat))
         elseif db.fade.enabled and cat:IsShown() and not cat.dragging and not (config and config:IsShown()) then
             local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
-            cat:SetAlpha(BaseAlpha(cat) * math.max(0, math.min(1, 1 - fadeProgress)))
+            SetCatAlpha(cat, BaseAlpha(cat) * math.max(0, math.min(1, 1 - fadeProgress)))
             if (cat.kind == "action" or cat.kind == "chat") and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
         end
     end
