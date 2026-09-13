@@ -3,6 +3,7 @@ local Controller = CreateFrame("Frame", addonName .. "Controller")
 local db, config
 local actionTriggersExpanded = false
 local spellSettingsExpanded = false
+local spellTriggersExpanded = false
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
@@ -67,7 +68,7 @@ local DEFAULTS = {
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
     spellSequence = { minimum = 5, maximum = 5, interval = 0.12, hold = 1.5 },
-    spellAuraTriggers = { buffs = false, debuffs = false },
+    spellTriggers = { castStart = true, channelStart = true, instantCasts = true, buffs = false, debuffs = false },
     actionTriggers = ACTION_TRIGGER_DEFAULTS,
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -104,9 +105,15 @@ local function CopyDefaults()
         if BongoCatClassicDB.spellSequence[key] == nil then BongoCatClassicDB.spellSequence[key] = value end
     end
     if BongoCatClassicDB.spellSequence.interval > 0.20 then BongoCatClassicDB.spellSequence.interval = 0.20 end
-    BongoCatClassicDB.spellAuraTriggers = BongoCatClassicDB.spellAuraTriggers or {}
-    if BongoCatClassicDB.spellAuraTriggers.buffs == nil then BongoCatClassicDB.spellAuraTriggers.buffs = DEFAULTS.spellAuraTriggers.buffs end
-    if BongoCatClassicDB.spellAuraTriggers.debuffs == nil then BongoCatClassicDB.spellAuraTriggers.debuffs = DEFAULTS.spellAuraTriggers.debuffs end
+    BongoCatClassicDB.spellTriggers = BongoCatClassicDB.spellTriggers or {}
+    if BongoCatClassicDB.spellAuraTriggers then
+        if BongoCatClassicDB.spellTriggers.buffs == nil then BongoCatClassicDB.spellTriggers.buffs = BongoCatClassicDB.spellAuraTriggers.buffs end
+        if BongoCatClassicDB.spellTriggers.debuffs == nil then BongoCatClassicDB.spellTriggers.debuffs = BongoCatClassicDB.spellAuraTriggers.debuffs end
+        BongoCatClassicDB.spellAuraTriggers = nil
+    end
+    for key, value in pairs(DEFAULTS.spellTriggers) do
+        if BongoCatClassicDB.spellTriggers[key] == nil then BongoCatClassicDB.spellTriggers[key] = value end
+    end
     BongoCatClassicDB.actionTriggers = BongoCatClassicDB.actionTriggers or {}
     for key, value in pairs(ACTION_TRIGGER_DEFAULTS) do
         if BongoCatClassicDB.actionTriggers[key] == nil then BongoCatClassicDB.actionTriggers[key] = value end
@@ -357,7 +364,7 @@ end
 local function TriggerAura(aura)
     if not aura then return false end
     local harmful = aura.isHarmful
-    local enabled = harmful and db.spellAuraTriggers.debuffs or (not harmful and db.spellAuraTriggers.buffs)
+    local enabled = harmful and db.spellTriggers.debuffs or (not harmful and db.spellTriggers.buffs)
     if not enabled then return false end
     local now = GetTime()
     if now - lastAuraTrigger < 0.25 then return false end
@@ -375,8 +382,8 @@ local function HandlePlayerAuras(updateInfo)
     end
     -- Fallback for Classic clients that report a full aura update without added-aura data.
     if not C_UnitAuras or not C_UnitAuras.GetAuraDataByIndex then return end
-    if db.spellAuraTriggers.buffs and TriggerAura(C_UnitAuras.GetAuraDataByIndex("player", 1, "HELPFUL")) then return end
-    if db.spellAuraTriggers.debuffs then TriggerAura(C_UnitAuras.GetAuraDataByIndex("player", 1, "HARMFUL")) end
+    if db.spellTriggers.buffs and TriggerAura(C_UnitAuras.GetAuraDataByIndex("player", 1, "HELPFUL")) then return end
+    if db.spellTriggers.debuffs then TriggerAura(C_UnitAuras.GetAuraDataByIndex("player", 1, "HARMFUL")) end
 end
 
 local function OnChatEdited(editBox)
@@ -693,7 +700,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 530 or 550))
+    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (spellSettingsExpanded and 500 or 550))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -706,7 +713,29 @@ local function OpenConfig()
     config:SetScript("OnDragStop", config.StopMovingOrSizing)
     config:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 11, top = 11, bottom = 11 } })
     local title = config:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -18); title:SetText("BongoCat Classic placements")
+    title:SetPoint("TOP", 0, -18); title:SetText("BongoCat Classic — quick setup")
+    if spellTriggersExpanded then
+        title:SetText("Spell cat triggers")
+        local back = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        back:SetSize(190, 22); back:SetPoint("TOPLEFT", 18, -52); back:SetText("Back to spell settings")
+        back:SetScript("OnClick", function()
+            spellTriggersExpanded = false
+            spellSettingsExpanded = true
+            config:Hide(); config = nil; OpenConfig()
+        end)
+        Label(config, "Choose what makes the spell cat appear.", 18, -84)
+        Checkbox(config, "Cast bars (slow spells)", 18, -110, db.spellTriggers.castStart, function(value) db.spellTriggers.castStart = value end)
+        Checkbox(config, "Channels (keep casting)", 18, -136, db.spellTriggers.channelStart, function(value) db.spellTriggers.channelStart = value end)
+        Checkbox(config, "Instant spells", 18, -162, db.spellTriggers.instantCasts, function(value) db.spellTriggers.instantCasts = value end)
+        Checkbox(config, "Buff gained (good effect)", 18, -188, db.spellTriggers.buffs, function(value) db.spellTriggers.buffs = value end)
+        Checkbox(config, "Debuff gained (bad effect)", 18, -214, db.spellTriggers.debuffs, function(value) db.spellTriggers.debuffs = value end)
+        Label(config, "Buffs and debuffs are effects on your character.", 18, -246)
+        local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
+        close:SetScript("OnClick", function() config:Hide() end)
+        ApplyAll()
+        return
+    end
     if spellSettingsExpanded then
         title:SetText("BongoCat Classic spell cat")
         local back = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
@@ -732,9 +761,14 @@ local function OpenConfig()
         CycleSequenceButton(config, 180, -318, "maximum", "Sequence max", db.spellSequence)
         CycleSequenceIntervalButton(config, 18, -348, db.spellSequence)
         CycleSpellHoldButton(config, 180, -348)
-        Label(config, "Aura triggers (your character)", 18, -386)
-        Checkbox(config, "Buff gained", 18, -408, db.spellAuraTriggers.buffs, function(value) db.spellAuraTriggers.buffs = value end)
-        Checkbox(config, "Debuff gained", 180, -408, db.spellAuraTriggers.debuffs, function(value) db.spellAuraTriggers.debuffs = value end)
+        local triggerList = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        triggerList:SetSize(190, 24); triggerList:SetPoint("TOPLEFT", 18, -386); triggerList:SetText("Spell triggers")
+        triggerList:SetScript("OnClick", function()
+            spellSettingsExpanded = false
+            spellTriggersExpanded = true
+            config:Hide(); config = nil; OpenConfig()
+        end)
+        Label(config, "Pick casts, buffs, and debuffs in the trigger list.", 18, -416)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
@@ -749,7 +783,7 @@ local function OpenConfig()
             actionTriggersExpanded = false
             config:Hide(); config = nil; OpenConfig()
         end)
-        Label(config, "Other settings are collapsed while editing triggers.", 18, -80)
+        Label(config, "Tick the things that should make the action cat bop.", 18, -80)
         Checkbox(config, "Action bar use", 18, -102, db.actionTriggers.actionBar, function(value) db.actionTriggers.actionBar = value end)
         Checkbox(config, "Spell cast starts", 18, -126, db.actionTriggers.castStart, function(value) db.actionTriggers.castStart = value end)
         Checkbox(config, "Spell cast completes", 18, -150, db.actionTriggers.castSuccess, function(value) db.actionTriggers.castSuccess = value end)
@@ -767,7 +801,7 @@ local function OpenConfig()
         ApplyAll()
         return
     end
-    Label(config, "Chat cat — reacts to typing", 18, -52)
+    Label(config, "Chat cat — bops while you type. Drag it near chat.", 18, -52)
     Checkbox(config, "Enabled", 18, -74, db.locations.chat.enabled, function(value)
         db.locations.chat.enabled = value; ApplyAll()
     end)
@@ -781,7 +815,7 @@ local function OpenConfig()
     ColourButton(config, "chat", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -134)
     ColourButton(config, "chat", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -134)
     CycleLayerButton(config, "chat", 18, -164)
-    Label(config, "Action cat — reacts to player actions", 18, -206)
+    Label(config, "Action cat — bops while you play. Drag it anywhere.", 18, -206)
     Checkbox(config, "Enabled", 18, -228, db.locations.action.enabled, function(value)
         db.locations.action.enabled = value; ApplyAll()
     end)
@@ -794,26 +828,27 @@ local function OpenConfig()
     ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -260)
     CycleLayerButton(config, "action", 18, -290)
     local spellToggle = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
-    spellToggle:SetSize(180, 22); spellToggle:SetPoint("TOPLEFT", 220, -290); spellToggle:SetText("Spell cat settings")
+    spellToggle:SetSize(180, 22); spellToggle:SetPoint("TOPLEFT", 220, -290); spellToggle:SetText("Spell cat setup")
     spellToggle:SetScript("OnClick", function()
         spellSettingsExpanded = true
         config:Hide(); config = nil; OpenConfig()
     end)
     local triggerToggle = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     triggerToggle:SetSize(190, 22); triggerToggle:SetPoint("TOPLEFT", 18, -318)
-    triggerToggle:SetText(actionTriggersExpanded and "Action-cat triggers: hide" or "Action-cat triggers: show")
+    triggerToggle:SetText(actionTriggersExpanded and "Hide action triggers" or "Choose action triggers")
     triggerToggle:SetScript("OnClick", function()
         actionTriggersExpanded = not actionTriggersExpanded
         config:Hide(); config = nil; OpenConfig()
     end)
     local lowerControlsY = -354
-    Label(config, "Drag either cat directly; lock it when positioned.", 18, lowerControlsY)
+    Label(config, "Drag cats directly, then lock them when happy.", 18, lowerControlsY)
     FadeModeButton(config, 18, lowerControlsY - 30)
     CycleFadeButton(config, 18, lowerControlsY - 60, "Fade delay", FADE_DELAYS, "delay", "s")
     CycleFadeButton(config, 190, lowerControlsY - 60, "Fade time", FADE_DURATIONS, "duration", "s")
-    CycleSequenceButton(config, 18, lowerControlsY - 90, "minimum", "Sequence min")
-    CycleSequenceButton(config, 180, lowerControlsY - 90, "maximum", "Sequence max")
-    CycleSequenceIntervalButton(config, 18, lowerControlsY - 120)
+    Label(config, "Action bops — pick a range for a little variety.", 18, lowerControlsY - 90)
+    CycleSequenceButton(config, 18, lowerControlsY - 112, "minimum", "Fewest bops")
+    CycleSequenceButton(config, 180, lowerControlsY - 112, "maximum", "Most bops")
+    CycleSequenceIntervalButton(config, 18, lowerControlsY - 142)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
@@ -866,18 +901,18 @@ Controller:SetScript("OnEvent", function(_, event, unit, castGUID, spellID)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         if unit == "player" then
             TriggerGlobal("castSuccess")
-            if not castGUID or not startedSpellCasts[castGUID] then TriggerSpell(spellID) end
+            if db.spellTriggers.instantCasts and (not castGUID or not startedSpellCasts[castGUID]) then TriggerSpell(spellID) end
             if castGUID then startedSpellCasts[castGUID] = nil end
         end
     elseif event == "UNIT_SPELLCAST_START" then
         if unit == "player" then
             if castGUID then startedSpellCasts[castGUID] = true end
-            TriggerGlobal("castStart"); TriggerSpell(spellID)
+            TriggerGlobal("castStart"); if db.spellTriggers.castStart then TriggerSpell(spellID) end
         end
     elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
         if unit == "player" then
             if castGUID then startedSpellCasts[castGUID] = true end
-            TriggerGlobal("channelStart"); TriggerSpell(spellID)
+            TriggerGlobal("channelStart"); if db.spellTriggers.channelStart then TriggerSpell(spellID) end
         end
     elseif event == "UNIT_AURA" then
         if unit == "player" then HandlePlayerAuras(castGUID) end
