@@ -12,6 +12,8 @@ SIZES = {
     "M": 256,
     "L": 256,
     "XL": 256,
+    "XXL": 512,
+    "XXXL": 512,
 }
 SOURCE_FRAME = 512
 

@@ -11,7 +11,7 @@ local startedSpellCasts = {}
 local activeLocation = "chat"
 local companionLocation = "chat"
 
-local SIZE_NAMES = { "XS", "S", "M", "L", "XL" }
+local SIZE_NAMES = { "XS", "S", "M", "L", "XL", "XXL", "XXXL" }
 local FILL_COLOURS = {
     cream = { label = "Cream", r = 1.00, g = 0.96, b = 0.86, a = 1 },
     white = { label = "White", r = 1.00, g = 1.00, b = 1.00, a = 1 },
@@ -42,6 +42,7 @@ local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20 }
 local SPELL_HOLD_DURATIONS = { 0.5, 1.0, 1.5, 2.0, 3.0, 5.0 }
+local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -54,6 +55,8 @@ local SIZES = {
     { width = 72, height = 36 },
     { width = 88, height = 44 },
     { width = 104, height = 52 },
+    { width = 128, height = 64 },
+    { width = 152, height = 76 },
 }
 local DEFAULTS = {
     layoutVersion = 7,
@@ -65,7 +68,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, size = 5, x = 0, y = -80, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, size = 7, x = 0, y = -80, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -111,11 +114,16 @@ local function CopyDefaults()
         if migrateSizes and not migrateLayout and location.size then location.size = math.min(location.size + 1, #SIZES) end
     end
     if (BongoCatClassicDB.spellCatPresentationVersion or 0) < 2 then
-        BongoCatClassicDB.locations.spell.size = 5
+        BongoCatClassicDB.locations.spell.size = 7
         BongoCatClassicDB.spellCatPresentationVersion = 2
     end
     BongoCatClassicDB.layoutVersion = DEFAULTS.layoutVersion
     db = BongoCatClassicDB
+end
+
+local function BaseAlpha(cat)
+    if cat.kind == "spell" then return db.locations.spell.opacity or 1.0 end
+    return 1.0
 end
 
 local function SetPose(cat, pose)
@@ -155,7 +163,7 @@ local function ApplyCat(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
     cat:SetFrameStrata(location.strata or "TOOLTIP")
     cat:SetFrameLevel(cat.kind == "spell" and 20 or 100)
-    cat:SetAlpha(1)
+    cat:SetAlpha(BaseAlpha(cat))
     local fill = location.fillColour or FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
     local outline = location.outlineColour or OUTLINE_COLOURS[location.outline] or OUTLINE_COLOURS.ink
@@ -230,12 +238,12 @@ local function CreateCat(key, location, kind)
                 self.spellDragOffsetY = catY - iconY
                 self.dragging = true
                 self.lastActivity = GetTime()
-                self:SetAlpha(1)
+                self:SetAlpha(BaseAlpha(self))
                 self:StartMoving()
             elseif not db.locations[self.location].locked then
                 self.dragging = true
                 self.lastActivity = GetTime()
-                self:SetAlpha(1)
+                self:SetAlpha(BaseAlpha(self))
                 self:StartMoving()
             end
         end)
@@ -290,7 +298,7 @@ local function Trigger(locations, fromSequence)
                 if cat.location == location then SetPose(cat, nextPaw); cat.lastHit = now end
                 if cat.location == location then
                     cat.lastActivity = now
-                    cat:SetAlpha(1)
+                    cat:SetAlpha(BaseAlpha(cat))
                     if (cat.kind == "action" or cat.kind == "chat") and not db.locations[cat.location].locked then cat:EnableMouse(true) end
                 end
             end
@@ -347,7 +355,7 @@ local function HookChatEditBoxes()
                     for _, cat in pairs(cats) do
                         if cat.location == "chat" then
                             cat.lastActivity = now
-                            cat:SetAlpha(1)
+                            cat:SetAlpha(BaseAlpha(cat))
                         end
                     end
                     ApplyAll()
@@ -377,7 +385,7 @@ local function Checkbox(parent, text, x, y, checked, changed)
     box:SetScript("OnClick", function(self) changed(self:GetChecked() and true or false) end)
 end
 
-local function CycleSizeButton(parent, name, x, y)
+local function CycleSizeButton(parent, name, x, y, maximum)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(165, 24)
     button:SetPoint("TOPLEFT", x, y)
@@ -387,7 +395,8 @@ local function CycleSizeButton(parent, name, x, y)
     Refresh()
     button:SetScript("OnClick", function()
         local location = db.locations[name]
-        location.size = location.size % #SIZES + 1
+        local limit = maximum or #SIZES
+        location.size = location.size % limit + 1
         Refresh()
         ApplyAll()
     end)
@@ -508,7 +517,28 @@ local function FadeModeButton(parent, x, y)
     Refresh()
     button:SetScript("OnClick", function()
         db.fade.enabled = not db.fade.enabled
-        if not db.fade.enabled then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
+        if not db.fade.enabled then for _, cat in pairs(cats) do cat:SetAlpha(BaseAlpha(cat)) end end
+        Refresh()
+    end)
+end
+
+local function CycleSpellOpacityButton(parent, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(150, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(string.format("Opacity: %d%%", (db.locations.spell.opacity or 1.0) * 100))
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        local location = db.locations.spell
+        for index, value in ipairs(SPELL_OPACITIES) do
+            if value == location.opacity then
+                location.opacity = SPELL_OPACITIES[index % #SPELL_OPACITIES + 1]
+                break
+            end
+        end
+        ApplyAll()
         Refresh()
     end)
 end
@@ -578,7 +608,7 @@ end
 local function OpenConfig()
     if config then
         config:Show()
-        for _, cat in pairs(cats) do cat:SetAlpha(1) end
+        for _, cat in pairs(cats) do cat:SetAlpha(BaseAlpha(cat)) end
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
@@ -586,7 +616,7 @@ local function OpenConfig()
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
-        for _, cat in pairs(cats) do cat:SetAlpha(1) end
+        for _, cat in pairs(cats) do cat:SetAlpha(BaseAlpha(cat)) end
         ApplyAll()
     end)
     config:SetScript("OnHide", function() ApplyAll() end)
@@ -606,10 +636,11 @@ local function OpenConfig()
         end)
         Label(config, "Spell cat — drag it while this window is open", 18, -84)
         Checkbox(config, "Enabled", 18, -106, db.locations.spell.enabled, function(value) db.locations.spell.enabled = value; ApplyAll() end)
-        CycleSizeButton(config, "spell", 150, -108)
+        CycleSizeButton(config, "spell", 150, -108, #SIZES)
         ColourButton(config, "spell", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -138)
         ColourButton(config, "spell", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -138)
         CycleLayerButton(config, "spell", 18, -168)
+        CycleSpellOpacityButton(config, 180, -168)
         Label(config, "Spell sequence", 18, -206)
         CycleSequenceButton(config, 18, -228, "minimum", "Sequence min", db.spellSequence)
         CycleSequenceButton(config, 180, -228, "maximum", "Sequence max", db.spellSequence)
@@ -655,7 +686,7 @@ local function OpenConfig()
     Checkbox(config, "Lock position", 110, -74, db.locations.chat.locked, function(value)
         db.locations.chat.locked = value; ApplyAll()
     end)
-    CycleSizeButton(config, "chat", 238, -76)
+    CycleSizeButton(config, "chat", 238, -76, 5)
     Checkbox(config, "Only while input is open", 18, -104, db.locations.chat.onlyWhileEditing, function(value)
         db.locations.chat.onlyWhileEditing = value; ApplyAll()
     end)
@@ -670,7 +701,7 @@ local function OpenConfig()
         db.locations.action.locked = value
         ApplyAll()
     end)
-    CycleSizeButton(config, "action", 238, -230)
+    CycleSizeButton(config, "action", 238, -230, 5)
     ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -260)
     ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -260)
     CycleLayerButton(config, "action", 18, -290)
@@ -795,7 +826,7 @@ Controller:SetScript("OnUpdate", function()
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
         if db.fade.enabled and cat:IsShown() and not cat.dragging and not (config and config:IsShown()) then
             local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
-            cat:SetAlpha(math.max(0, math.min(1, 1 - fadeProgress)))
+            cat:SetAlpha(BaseAlpha(cat) * math.max(0, math.min(1, 1 - fadeProgress)))
             if (cat.kind == "action" or cat.kind == "chat") and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
         end
     end
