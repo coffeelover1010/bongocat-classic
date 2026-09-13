@@ -41,6 +41,7 @@ local FADE_DELAYS = { 1, 2, 5, 10 }
 local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20 }
+local SPELL_HOLD_DURATIONS = { 0.5, 1.0, 1.5, 2.0, 3.0, 5.0 }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -59,7 +60,7 @@ local DEFAULTS = {
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
-    spellSequence = { minimum = 5, maximum = 5, interval = 0.12 },
+    spellSequence = { minimum = 5, maximum = 5, interval = 0.12, hold = 1.5 },
     actionTriggers = ACTION_TRIGGER_DEFAULTS,
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -322,7 +323,7 @@ local function TriggerSpell(spellID)
     local steps = math.random(db.spellSequence.minimum, db.spellSequence.maximum)
     spellPlayback.remaining = math.max(spellPlayback.remaining, steps - 1)
     spellPlayback.nextAt = now + db.spellSequence.interval
-    spellPlayback.visibleUntil = now + steps * db.spellSequence.interval + 0.25
+    spellPlayback.visibleUntil = now + steps * db.spellSequence.interval + db.spellSequence.hold
 end
 
 local function OnChatEdited(editBox)
@@ -555,6 +556,25 @@ local function CycleSequenceIntervalButton(parent, x, y, sequence)
     end)
 end
 
+local function CycleSpellHoldButton(parent, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(150, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(string.format("Stay visible: %.1fs", db.spellSequence.hold))
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        for index, value in ipairs(SPELL_HOLD_DURATIONS) do
+            if value == db.spellSequence.hold then
+                db.spellSequence.hold = SPELL_HOLD_DURATIONS[index % #SPELL_HOLD_DURATIONS + 1]
+                break
+            end
+        end
+        Refresh()
+    end)
+end
+
 local function OpenConfig()
     if config then
         config:Show()
@@ -562,7 +582,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 420 or 550))
+    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 440 or 550))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -594,6 +614,7 @@ local function OpenConfig()
         CycleSequenceButton(config, 18, -228, "minimum", "Sequence min", db.spellSequence)
         CycleSequenceButton(config, 180, -228, "maximum", "Sequence max", db.spellSequence)
         CycleSequenceIntervalButton(config, 18, -258, db.spellSequence)
+        CycleSpellHoldButton(config, 180, -258)
         Label(config, "Uses the shared fade mode and timing.", 18, -296)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
