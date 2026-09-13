@@ -6,6 +6,7 @@ local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
 local spellSequence = { remaining = 0, nextAt = 0 }
+local startedSpellCasts = {}
 local activeLocation = "chat"
 
 local SIZE_NAMES = { "XS", "S", "M", "L", "XL" }
@@ -183,6 +184,12 @@ local function CreateCat(key, location, kind)
     cat.art = cat:CreateTexture(nil, "ARTWORK")
     cat.art:SetAllPoints(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
+    if kind == "spell" then
+        cat.spellIcon = cat:CreateTexture(nil, "BACKGROUND", nil, -1)
+        cat.spellIcon:SetPoint("CENTER", cat, "CENTER")
+        cat.spellIcon:SetSize(28, 28)
+        cat.spellIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    end
     if kind == "chat" or kind == "action" then
         cat:SetMovable(true)
         cat:EnableMouse(true)
@@ -253,9 +260,16 @@ local function TriggerGlobal(condition)
     globalSequence.nextAt = now + db.actionSequence.interval
 end
 
-local function TriggerSpell()
+local function TriggerSpell(spellID)
     if not db.locations.spell.enabled then return end
     local now = GetTime()
+    local texture = spellID and GetSpellTexture(spellID)
+    for _, cat in pairs(cats) do
+        if cat.location == "spell" and cat.spellIcon then
+            cat.spellIcon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
+            cat.spellIcon:SetSize(SIZES[db.locations.spell.size].height, SIZES[db.locations.spell.size].height)
+        end
+    end
     Trigger({ "spell" })
     local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
     spellSequence.remaining = math.max(spellSequence.remaining, steps - 1)
@@ -618,7 +632,7 @@ Controller:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
 Controller:RegisterEvent("UNIT_COMBAT")
 Controller:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 Controller:RegisterEvent("BAG_UPDATE_DELAYED")
-Controller:SetScript("OnEvent", function(_, event, unit)
+Controller:SetScript("OnEvent", function(_, event, unit, castGUID, spellID)
     if event == "PLAYER_LOGIN" then
         CopyDefaults()
         CreateCat("Chat", "chat", "chat")
@@ -630,11 +644,21 @@ Controller:SetScript("OnEvent", function(_, event, unit)
         if type(UseAction) == "function" then hooksecurefunc("UseAction", function() TriggerGlobal("actionBar") end) end
         Print("loaded. Use /bc config to place and size cats.")
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-        if unit == "player" then TriggerGlobal("castSuccess") end
+        if unit == "player" then
+            TriggerGlobal("castSuccess")
+            if not castGUID or not startedSpellCasts[castGUID] then TriggerSpell(spellID) end
+            if castGUID then startedSpellCasts[castGUID] = nil end
+        end
     elseif event == "UNIT_SPELLCAST_START" then
-        if unit == "player" then TriggerGlobal("castStart"); TriggerSpell() end
+        if unit == "player" then
+            if castGUID then startedSpellCasts[castGUID] = true end
+            TriggerGlobal("castStart"); TriggerSpell(spellID)
+        end
     elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
-        if unit == "player" then TriggerGlobal("channelStart"); TriggerSpell() end
+        if unit == "player" then
+            if castGUID then startedSpellCasts[castGUID] = true end
+            TriggerGlobal("channelStart"); TriggerSpell(spellID)
+        end
     elseif event == "UNIT_COMBAT" then
         if unit == "player" then TriggerGlobal("combat") end
     elseif event == "PLAYER_STARTED_MOVING" then
