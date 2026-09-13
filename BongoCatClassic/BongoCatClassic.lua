@@ -77,8 +77,11 @@ end
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
+    local textureSize = SIZE_NAMES[location.size]
     local target = cat.kind == "chat" and ChatFrame1 or MainMenuBar
     cat:SetSize(size.width, size.height)
+    cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill-" .. textureSize .. ".tga")
+    cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
     cat:SetFrameStrata(location.strata or "TOOLTIP")
     cat:SetFrameLevel(100)
     cat:SetAlpha(1)
