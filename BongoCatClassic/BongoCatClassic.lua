@@ -49,6 +49,12 @@ local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
 local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
 local SPELL_ICON_DIMENSIONS = { 32, 40, 48, 64, 80, 96, 112, 128 }
 local SPELL_BUBBLE_DIMENSIONS = { 160, 200, 240, 280, 320 }
+local SPELL_BORDER_STYLES = {
+    quickslot = { label = "Quickslot", texture = "Interface\\Buttons\\UI-Quickslot2", padding = 5 },
+    action = { label = "Action-bar gold", texture = "Interface\\Buttons\\UI-ActionButton-Border", padding = 4 },
+    clean = { label = "Clean dark", padding = 2 },
+}
+local SPELL_BORDER_STYLE_ORDER = { "quickslot", "action", "clean" }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -65,7 +71,7 @@ local SIZES = {
     { width = 152, height = 76 },
 }
 local DEFAULTS = {
-    layoutVersion = 7,
+    layoutVersion = 8,
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
@@ -75,7 +81,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, iconBorderStyle = "quickslot", catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -169,6 +175,33 @@ local function SetSpellIconAlpha(cat, alpha)
     if cat.kind == "spell" and cat.spellIconFrame then cat.spellIconFrame:SetAlpha(alpha) end
 end
 
+local function ApplySpellBorder(cat, location)
+    local frame = cat.spellIconFrame
+    local style = SPELL_BORDER_STYLES[location.iconBorderStyle] or SPELL_BORDER_STYLES.quickslot
+    local shown = location.iconBorder ~= false
+    local width, height = location.iconWidth or 64, location.iconHeight or 64
+
+    frame.border:Hide()
+    for _, piece in ipairs(frame.cleanBorder) do piece:Hide() end
+    if not shown then return end
+
+    if location.iconBorderStyle == "clean" then
+        local thickness, padding = 2, style.padding
+        local top, bottom, left, right = unpack(frame.cleanBorder)
+        top:ClearAllPoints(); top:SetPoint("TOPLEFT", frame, "TOPLEFT", -padding, padding); top:SetSize(width + padding * 2, thickness)
+        bottom:ClearAllPoints(); bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", -padding, -padding); bottom:SetSize(width + padding * 2, thickness)
+        left:ClearAllPoints(); left:SetPoint("TOPLEFT", frame, "TOPLEFT", -padding, padding); left:SetSize(thickness, height + padding * 2)
+        right:ClearAllPoints(); right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", padding, padding); right:SetSize(thickness, height + padding * 2)
+        for _, piece in ipairs(frame.cleanBorder) do piece:Show() end
+    else
+        frame.border:ClearAllPoints()
+        frame.border:SetPoint("CENTER", frame, "CENTER")
+        frame.border:SetSize(width + style.padding * 2, height + style.padding * 2)
+        frame.border:SetTexture(style.texture)
+        frame.border:Show()
+    end
+end
+
 local function SetPose(cat, pose)
     -- 2048x512 atlas: three 512px-wide poses; the cat occupies its middle half vertically.
     local left = pose * 0.25
@@ -230,9 +263,7 @@ local function ApplyCat(cat)
         cat.spellIconFrame:SetFrameStrata(location.strata or "TOOLTIP")
         cat.spellIconFrame:SetFrameLevel(10)
         cat.spellIconFrame:SetSize(location.iconWidth or 64, location.iconHeight or 64)
-        cat.spellIconFrame.border:ClearAllPoints()
-        cat.spellIconFrame.border:SetPoint("CENTER", cat.spellIconFrame, "CENTER")
-        cat.spellIconFrame.border:SetSize((location.iconWidth or 64) + 10, (location.iconHeight or 64) + 10)
+        ApplySpellBorder(cat, location)
         cat.spellIconFrame:ClearAllPoints()
         if location.bubbleEnabled then
             cat.spellIconFrame:SetPoint("CENTER", cat.bubble, "CENTER", location.bubbleIconX or 0, location.bubbleIconY or -20)
@@ -241,7 +272,6 @@ local function ApplyCat(cat)
         end
         local zoom = location.iconZoom or 0
         cat.spellIconFrame.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
-        cat.spellIconFrame.border:SetShown(location.iconBorder ~= false)
         -- Present a WeakAuras-style spell icon slightly below screen centre; the cat's paws overlap it.
         cat:SetPoint("BOTTOM", cat.spellIconFrame, "TOP", location.catOffsetX or 0, location.catOffsetY or -10)
     elseif location.placed then
@@ -318,6 +348,13 @@ local function CreateCat(key, location, kind)
         cat.spellIconFrame.border:SetPoint("CENTER", cat.spellIconFrame, "CENTER")
         cat.spellIconFrame.border:SetSize(74, 74)
         cat.spellIconFrame.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+        cat.spellIconFrame.cleanBorder = {}
+        for index = 1, 4 do
+            local piece = cat.spellIconFrame:CreateTexture(nil, "OVERLAY")
+            piece:SetColorTexture(0.075, 0.075, 0.09, 0.95)
+            piece:Hide()
+            cat.spellIconFrame.cleanBorder[index] = piece
+        end
         cat.spellIconFrame:SetMovable(true)
         cat.spellIconFrame:EnableMouse(false)
         cat.spellIconFrame:RegisterForDrag("LeftButton")
@@ -871,23 +908,24 @@ local function OpenConfig()
         Label(config, "Spell icon", 18, -236)
         CycleSpellIconButton(config, 18, -258, "iconZoom", "Icon zoom", SPELL_ICON_ZOOMS, function(value) return string.format("%d%%", value * 100) end)
         SpellBorderButton(config, 180, -258)
-        CycleSpellIconButton(config, 18, -288, "iconWidth", "Icon width", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
-        CycleSpellIconButton(config, 180, -288, "iconHeight", "Icon height", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
-        Label(config, "Spell sequence", 18, -326)
-        CycleSequenceButton(config, 18, -348, "minimum", "Sequence min", db.spellSequence)
-        CycleSequenceButton(config, 180, -348, "maximum", "Sequence max", db.spellSequence)
-        CycleSequenceIntervalButton(config, 18, -378, db.spellSequence)
-        CycleSpellHoldButton(config, 180, -378)
+        CycleSpellIconButton(config, 18, -288, "iconBorderStyle", "Border style", SPELL_BORDER_STYLE_ORDER, function(value) return SPELL_BORDER_STYLES[value].label end)
+        CycleSpellIconButton(config, 180, -288, "iconWidth", "Icon width", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
+        CycleSpellIconButton(config, 18, -318, "iconHeight", "Icon height", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
+        Label(config, "Spell sequence", 18, -356)
+        CycleSequenceButton(config, 18, -378, "minimum", "Sequence min", db.spellSequence)
+        CycleSequenceButton(config, 180, -378, "maximum", "Sequence max", db.spellSequence)
+        CycleSequenceIntervalButton(config, 18, -408, db.spellSequence)
+        CycleSpellHoldButton(config, 180, -408)
         local triggerList = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
-        triggerList:SetSize(190, 24); triggerList:SetPoint("TOPLEFT", 18, -416); triggerList:SetText("Spell triggers")
+        triggerList:SetSize(190, 24); triggerList:SetPoint("TOPLEFT", 18, -446); triggerList:SetText("Spell triggers")
         triggerList:SetScript("OnClick", function()
             spellSettingsExpanded = false
             spellTriggersExpanded = true
             config:Hide(); config = nil; OpenConfig()
         end)
-        Label(config, "Pick casts, buffs, and debuffs in the trigger list.", 18, -446)
+        Label(config, "Pick casts, buffs, and debuffs in the trigger list.", 18, -476)
         local bubbleSetup = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
-        bubbleSetup:SetSize(190, 24); bubbleSetup:SetPoint("TOPLEFT", 210, -416); bubbleSetup:SetText("Speech bubble setup")
+        bubbleSetup:SetSize(190, 24); bubbleSetup:SetPoint("TOPLEFT", 210, -446); bubbleSetup:SetText("Speech bubble setup")
         bubbleSetup:SetScript("OnClick", function()
             spellSettingsExpanded = false
             bubbleSettingsExpanded = true
