@@ -1,8 +1,8 @@
-## Interface: 11500
+## Interface: 11509
 ## Title: BongoCat Classic
 ## Notes: A small animated cat that bops along while you type in chat.
 ## Author: Videocat
-## Version: 0.34.1
+## Version: 0.34.2
 ## SavedVariables: BongoCatClassicDB
 
 BongoCatClassic.lua
