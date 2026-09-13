@@ -7,8 +7,9 @@ local spellTriggersExpanded = false
 local bubbleSettingsExpanded = false
 local trialSettingsExpanded = false
 local cats = {}
-local nextPaw, lastGlobalInput = 1, 0
+local nextPaw, lastGlobalInput, lastNameplateInput = 1, 0, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
+local nameplateSequence = { remaining = 0, nextAt = 0 }
 local spellPlayback = { remaining = 0, nextAt = 0, visibleUntil = 0 }
 local mountedTapping = { active = false, nextAt = 0 }
 local castbarTapping = { active = false, nextAt = 0 }
@@ -75,6 +76,10 @@ local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
     targetChange = true, equipment = true, bags = true,
+}
+local NAMEPLATE_SEQUENCE_CONDITIONS = {
+    targetChange = true, actionBar = true, castStart = true,
+    castSuccess = true, channelStart = true, combat = true,
 }
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = {
@@ -522,7 +527,19 @@ local function Trigger(locations, fromSequence)
     end
 end
 
+local function TriggerNameplate()
+    if not db.locations.nameplate.enabled or not UnitExists("target") then return end
+    local now = GetTime()
+    if now - lastNameplateInput < 0.10 then return end
+    lastNameplateInput = now
+    Trigger({ "nameplate" }, true)
+    local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
+    nameplateSequence.remaining = math.max(nameplateSequence.remaining, steps - 1)
+    nameplateSequence.nextAt = now + db.actionSequence.interval
+end
+
 local function TriggerGlobal(condition)
+    if condition and NAMEPLATE_SEQUENCE_CONDITIONS[condition] then TriggerNameplate() end
     if condition and not db.actionTriggers[condition] then return end
     local now = GetTime()
     -- A short gate turns rapid input into an intentional rhythm instead of a flicker.
@@ -1231,6 +1248,11 @@ end)
 
 Controller:SetScript("OnUpdate", function()
     local now = GetTime()
+    if nameplateSequence.remaining > 0 and now >= nameplateSequence.nextAt then
+        Trigger({ "nameplate" }, true)
+        nameplateSequence.remaining = nameplateSequence.remaining - 1
+        nameplateSequence.nextAt = now + db.actionSequence.interval
+    end
     if castbarTapping.active and now >= castbarTapping.nextAt then
         Trigger({ "castbar" }, true)
         castbarTapping.nextAt = now + db.spellSequence.interval
