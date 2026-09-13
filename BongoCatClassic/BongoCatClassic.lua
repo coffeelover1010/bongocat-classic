@@ -5,6 +5,7 @@ local actionTriggersExpanded = false
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
+local spellSequence = { remaining = 0, nextAt = 0 }
 local activeLocation = "chat"
 
 local SIZE_NAMES = { "XS", "S", "M", "L", "XL" }
@@ -59,6 +60,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, size = 2, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -125,16 +127,20 @@ local function ChatInputOpen()
     return false
 end
 
+local function CastingBar()
+    return CastingBarFrame or PlayerCastingBarFrame or UIParent
+end
+
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
     local textureSize = SIZE_NAMES[location.size]
-    local target = cat.kind == "chat" and ChatFrame1 or MainMenuBar
+    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and CastingBar() or MainMenuBar)
     cat:SetSize(size.width, size.height)
     cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill-" .. textureSize .. ".tga")
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
     cat:SetFrameStrata(location.strata or "TOOLTIP")
-    cat:SetFrameLevel(100)
+    cat:SetFrameLevel(cat.kind == "spell" and target:GetFrameLevel() + 10 or 100)
     cat:SetAlpha(1)
     local fill = location.fillColour or FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
@@ -148,6 +154,10 @@ local function ApplyCat(cat)
         ClampChatLocation(location, size)
         -- Anchor to the chat frame after clamping to its padded drag area.
         cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", location.x, location.y)
+    elseif cat.kind == "spell" then
+        local icon = target.Icon or target.icon or target
+        -- Keep the paws and bongo directly over the spell image at the start of the cast bar.
+        cat:SetPoint("CENTER", icon, "CENTER", 0, 0)
     elseif location.placed then
         cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
     else
@@ -240,6 +250,15 @@ local function TriggerGlobal(condition)
     local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
     globalSequence.remaining = math.max(globalSequence.remaining, steps - 1)
     globalSequence.nextAt = now + db.actionSequence.interval
+end
+
+local function TriggerSpell()
+    if not db.locations.spell.enabled then return end
+    local now = GetTime()
+    Trigger({ "spell" })
+    local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
+    spellSequence.remaining = math.max(spellSequence.remaining, steps - 1)
+    spellSequence.nextAt = now + db.actionSequence.interval
 end
 
 local function OnChatEdited(editBox)
@@ -525,6 +544,9 @@ local function OpenConfig()
     ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -260)
     ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -260)
     CycleLayerButton(config, "action", 18, -290)
+    Checkbox(config, "Spell cat enabled", 220, -290, db.locations.spell.enabled, function(value)
+        db.locations.spell.enabled = value; ApplyAll()
+    end)
     local triggerToggle = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     triggerToggle:SetSize(190, 22); triggerToggle:SetPoint("TOPLEFT", 18, -318)
     triggerToggle:SetText(actionTriggersExpanded and "Action-cat triggers: hide" or "Action-cat triggers: show")
@@ -563,7 +585,7 @@ SlashCmdList.BONGOCATCLASSIC = function(message)
     elseif command == "hide" then db.shown = false; ApplyAll(); Print("hidden.")
     elseif command == "toggle" then db.shown = not db.shown; ApplyAll(); Print(db.shown and "shown." or "hidden.")
     elseif command == "reset" then db.locations = {}; CopyDefaults(); ApplyAll(); Print("placements reset.")
-    elseif command == "test" then Trigger({ "chat" }); TriggerGlobal(); Print("bop!")
+    elseif command == "test" then Trigger({ "chat" }); TriggerGlobal(); TriggerSpell(); Print("bop!")
     elseif command == "credits" then Print("Kitgore icon-font artwork used under MIT; see THIRD_PARTY_NOTICES.md.")
     else Help() end
 end
@@ -584,6 +606,7 @@ Controller:SetScript("OnEvent", function(_, event, unit)
         CopyDefaults()
         CreateCat("Chat", "chat", "chat")
         CreateCat("Action", "action", "action")
+        CreateCat("Spell", "spell", "spell")
         ApplyAll()
         HookChatEditBoxes()
         -- Covers action-bar mouse clicks and bound action keys in addition to cast events.
@@ -592,9 +615,9 @@ Controller:SetScript("OnEvent", function(_, event, unit)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         if unit == "player" then TriggerGlobal("castSuccess") end
     elseif event == "UNIT_SPELLCAST_START" then
-        if unit == "player" then TriggerGlobal("castStart") end
+        if unit == "player" then TriggerGlobal("castStart"); TriggerSpell() end
     elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
-        if unit == "player" then TriggerGlobal("channelStart") end
+        if unit == "player" then TriggerGlobal("channelStart"); TriggerSpell() end
     elseif event == "UNIT_COMBAT" then
         if unit == "player" then TriggerGlobal("combat") end
     elseif event == "PLAYER_STARTED_MOVING" then
@@ -618,6 +641,11 @@ Controller:SetScript("OnUpdate", function()
         Trigger({ "action" }, true)
         globalSequence.remaining = globalSequence.remaining - 1
         globalSequence.nextAt = now + db.actionSequence.interval
+    end
+    if spellSequence.remaining > 0 and now >= spellSequence.nextAt then
+        Trigger({ "spell" }, true)
+        spellSequence.remaining = spellSequence.remaining - 1
+        spellSequence.nextAt = now + db.actionSequence.interval
     end
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
