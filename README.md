@@ -1,6 +1,6 @@
 # BongoCat Classic
 
-A Bongo Cat animation for World of Warcraft Classic. It includes cats for chat, general player actions, and player spell casts; the spell cat performs a short sequence above a central spell icon, including for instant casts. The add-on uses the MIT-licensed Kitgore Bongo Cat icon artwork in idle, left-tap, and right-tap states.
+A small animated cat that taps along while you play World of Warcraft Classic.
 
 ## Install for testing
 
