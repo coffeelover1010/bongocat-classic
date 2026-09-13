@@ -13,16 +13,16 @@ A Bongo Cat animation for World of Warcraft Classic. It includes cats for chat, 
 ## Commands
 
 - `/bc` — show help.
-- `/bc config` — use the short explanations to set up chat, action, and spell cats. Trigger lists are separate compact views; spell triggers include cast bars, channels, instant spells, buffs, and debuffs. Spell settings also offer independent cat/icon controls, XXL/XXXL sizes, post-sequence visibility time, icon zoom, independent icon width and height, and a border toggle; drag the cat and icon to position them. An optional speech bubble has its own enable, opacity, width, height, and drag placement controls.
+- `/bc config` — open the settings. Turn each cat on or off, drag it into place, and choose its size, colours, fading, and tap speed. The spell cat can also show your spell icon and a speech bubble.
 - `/bc show`, `/bc hide`, `/bc toggle`
 - `/bc reset` — restore the placement defaults.
 - `/bc test` — play a short test animation.
 
 ## Test notes
 
-Only one cat is visible at a time: the cat associated with the most recent real chat or player activity. The draggable chat cat is constrained to the complete Blizzard chat window plus a 20% margin on every side and listens only for changes to its active edit box; it does not read or store what you type. The draggable action cat responds to action-bar use, spell casts/channels, combat events, movement/turning, target changes, equipment changes, and bag updates. Each global action starts an alternating five-tap sequence by default; you can configure a random minimum–maximum tap range, with a short pacing gate so rapid input remains readable. Both start on the top UI layer with a warm cream fill and soft-black outline, and fade after five seconds of inactivity by default; locking either cat makes it click-through. Please report the exact Classic client version and any error message if an animation does not fire.
+The cats tap when you type, use actions, cast spells, fight, move, or change targets. The most recently active cat normally gets the spotlight, so your screen stays uncluttered. Cats fade away after a short pause by default, and you can lock them so they do not get in the way of clicking.
 
-Each T-shirt size uses a precomputed TGA texture atlas created with Lanczos resampling, rather than relying entirely on live texture downscaling.
+If something does not work, please include your Classic client version and any error message when reporting it.
 
 ## Credits
 
