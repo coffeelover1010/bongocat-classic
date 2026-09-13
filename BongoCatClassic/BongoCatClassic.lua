@@ -4,6 +4,7 @@ local db, config
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
+local activeLocation = "chat"
 
 local SIZE_NAMES = { "XS", "S", "M", "L", "XL" }
 local FILL_COLOURS = {
@@ -132,7 +133,7 @@ local function ApplyCat(cat)
         cat:SetPoint("BOTTOM", MainMenuBar, "TOP", 0, 0)
     end
     if cat.kind == "chat" or cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
-    if db.shown and location.enabled then cat:Show() else cat:Hide() end
+    if db.shown and location.enabled and cat.location == activeLocation then cat:Show() else cat:Hide() end
 end
 
 local function ApplyAll()
@@ -185,10 +186,14 @@ local function CreateCat(key, location, kind)
     cats[key] = cat
 end
 
-local function Trigger(locations)
+local function Trigger(locations, fromSequence)
     local now = GetTime()
     nextPaw = nextPaw == 1 and 2 or 1
     for _, location in ipairs(locations) do
+        if not fromSequence then
+            activeLocation = location
+            ApplyAll()
+        end
         if db.locations[location].enabled then
             for _, cat in pairs(cats) do
                 if cat.location == location then SetPose(cat, nextPaw); cat.lastHit = now end
@@ -498,7 +503,7 @@ end)
 Controller:SetScript("OnUpdate", function()
     local now = GetTime()
     if globalSequence.remaining > 0 and now >= globalSequence.nextAt then
-        Trigger({ "action" })
+        Trigger({ "action" }, true)
         globalSequence.remaining = globalSequence.remaining - 1
         globalSequence.nextAt = now + 0.12
     end
