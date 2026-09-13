@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="512" viewBox="0 0 1536 512">
+  <!-- Original, independently drawn outline Bongo Cat sprite sheet: idle, left tap, right tap. -->
+  <defs>
+    <style>
+      .line { fill: none; stroke: #171923; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { fill: none; stroke: #171923; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+      .pad { fill: #f49aae; stroke: #171923; stroke-width: 8; }
+      .eye { fill: #171923; }
+    </style>
+    <g id="body">
+      <!-- A deliberately rounded, asymmetric cat silhouette rather than any traced reference. -->
+      <path class="line" d="M112 307 C92 270 88 211 112 158 L161 194 C206 154 270 139 331 158 L394 118 L391 223 C423 255 430 291 415 322"/>
+      <path class="thin" d="M195 216 C204 224 209 234 210 244 M304 221 C295 229 290 239 290 249"/>
+      <circle class="eye" cx="191" cy="228" r="9"/><circle class="eye" cx="309" cy="232" r="9"/>
+      <path class="thin" d="M241 260 C250 271 262 271 270 260 M255 260 L255 275"/>
+      <path class="thin" d="M132 244 L91 235 M134 258 L87 264"/>
+      <path class="thin" d="M371 250 L420 241 M370 265 L420 273"/>
+    </g>
+    <g id="drums">
+      <ellipse class="line" cx="159" cy="355" rx="76" ry="33"/>
+      <path class="thin" d="M84 355 L101 432 M234 355 L218 432 M112 380 L122 447 M204 380 L195 447"/>
+      <ellipse class="line" cx="327" cy="366" rx="83" ry="36"/>
+      <path class="thin" d="M245 366 L263 447 M410 366 L394 447 M274 394 L284 460 M381 394 L371 460"/>
+    </g>
+    <g id="pawLeftIdle">
+      <path class="line" d="M142 313 C122 302 113 278 122 255 C130 235 150 229 163 243 C176 257 174 285 166 310"/>
+      <circle class="pad" cx="143" cy="270" r="15"/><circle class="pad" cx="127" cy="250" r="7"/><circle class="pad" cx="144" cy="241" r="7"/><circle class="pad" cx="158" cy="253" r="7"/>
+    </g>
+    <g id="pawRightIdle">
+      <path class="line" d="M338 322 C330 298 333 274 347 259 C361 245 381 252 387 272 C394 294 381 315 361 325"/>
+      <circle class="pad" cx="362" cy="283" r="15"/><circle class="pad" cx="347" cy="264" r="7"/><circle class="pad" cx="364" cy="255" r="7"/><circle class="pad" cx="379" cy="268" r="7"/>
+    </g>
+    <g id="pawLeftTap">
+      <path class="line" d="M140 322 C116 336 103 354 110 371 C118 390 145 393 161 375 C173 360 169 340 159 326"/>
+      <circle class="pad" cx="139" cy="359" r="15"/><circle class="pad" cx="121" cy="351" r="7"/><circle class="pad" cx="134" cy="339" r="7"/><circle class="pad" cx="153" cy="344" r="7"/>
+    </g>
+    <g id="pawRightTap">
+      <path class="line" d="M353 326 C375 337 394 357 388 375 C381 395 354 399 338 381 C326 365 332 343 342 329"/>
+      <circle class="pad" cx="360" cy="362" r="15"/><circle class="pad" cx="378" cy="354" r="7"/><circle class="pad" cx="365" cy="342" r="7"/><circle class="pad" cx="346" cy="347" r="7"/>
+    </g>
+  </defs>
+  <g transform="translate(0 0)"><use href="#body"/><use href="#drums"/><use href="#pawLeftIdle"/><use href="#pawRightIdle"/></g>
+  <g transform="translate(512 0)"><use href="#body"/><use href="#drums"/><use href="#pawLeftTap"/><use href="#pawRightIdle"/></g>
+  <g transform="translate(1024 0)"><use href="#body"/><use href="#drums"/><use href="#pawLeftIdle"/><use href="#pawRightTap"/></g>
+</svg>
