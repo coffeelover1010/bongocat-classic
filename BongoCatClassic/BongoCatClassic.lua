@@ -33,7 +33,7 @@ local LAYER_NAMES = {
 local LAYER_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 local FADE_DELAYS = { 1, 2, 5, 10 }
 local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
-local SEQUENCE_STEPS = { 1, 3, 5, 7, 9 }
+local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = {
     { width = 42, height = 21 },
@@ -46,7 +46,7 @@ local DEFAULTS = {
     layoutVersion = 7,
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
-    actionSequence = { steps = 5 },
+    actionSequence = { minimum = 5, maximum = 5 },
     locations = {
         chat = { enabled = true, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -67,7 +67,13 @@ local function CopyDefaults()
         if BongoCatClassicDB.fade[key] == nil then BongoCatClassicDB.fade[key] = value end
     end
     BongoCatClassicDB.actionSequence = BongoCatClassicDB.actionSequence or {}
-    if BongoCatClassicDB.actionSequence.steps == nil then BongoCatClassicDB.actionSequence.steps = DEFAULTS.actionSequence.steps end
+    if BongoCatClassicDB.actionSequence.steps then
+        BongoCatClassicDB.actionSequence.minimum = BongoCatClassicDB.actionSequence.steps
+        BongoCatClassicDB.actionSequence.maximum = BongoCatClassicDB.actionSequence.steps
+        BongoCatClassicDB.actionSequence.steps = nil
+    end
+    if BongoCatClassicDB.actionSequence.minimum == nil then BongoCatClassicDB.actionSequence.minimum = DEFAULTS.actionSequence.minimum end
+    if BongoCatClassicDB.actionSequence.maximum == nil then BongoCatClassicDB.actionSequence.maximum = DEFAULTS.actionSequence.maximum end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
@@ -202,7 +208,8 @@ local function TriggerGlobal()
     if now - lastGlobalInput < 0.10 then return end
     lastGlobalInput = now
     Trigger({ "action" })
-    globalSequence.remaining = math.max(globalSequence.remaining, db.actionSequence.steps - 1)
+    local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
+    globalSequence.remaining = math.max(globalSequence.remaining, steps - 1)
     globalSequence.nextAt = now + 0.12
 end
 
@@ -362,17 +369,23 @@ local function CycleFadeButton(parent, x, y, label, values, key, suffix)
     end)
 end
 
-local function CycleSequenceButton(parent, x, y)
+local function CycleSequenceButton(parent, x, y, key, label)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    button:SetSize(170, 24)
+    button:SetSize(150, 24)
     button:SetPoint("TOPLEFT", x, y)
     local function Refresh()
-        button:SetText("Action sequence: " .. db.actionSequence.steps .. " taps")
+        button:SetText(label .. ": " .. db.actionSequence[key])
     end
     Refresh()
     button:SetScript("OnClick", function()
         for index, value in ipairs(SEQUENCE_STEPS) do
-            if value == db.actionSequence.steps then db.actionSequence.steps = SEQUENCE_STEPS[index % #SEQUENCE_STEPS + 1]; break end
+            if value == db.actionSequence[key] then
+                db.actionSequence[key] = SEQUENCE_STEPS[index % #SEQUENCE_STEPS + 1]
+                break
+            end
+        end
+        if db.actionSequence.minimum > db.actionSequence.maximum then
+            if key == "minimum" then db.actionSequence.maximum = db.actionSequence.minimum else db.actionSequence.minimum = db.actionSequence.maximum end
         end
         Refresh()
     end)
@@ -427,7 +440,8 @@ local function OpenConfig()
     end)
     CycleFadeButton(config, 18, -358, "Fade delay", FADE_DELAYS, "delay", "s")
     CycleFadeButton(config, 190, -358, "Fade time", FADE_DURATIONS, "duration", "s")
-    CycleSequenceButton(config, 18, -388)
+    CycleSequenceButton(config, 18, -388, "minimum", "Sequence min")
+    CycleSequenceButton(config, 180, -388, "maximum", "Sequence max")
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
