@@ -21,6 +21,8 @@ local OUTLINE_COLOURS = {
 local OUTLINE_ORDER = { "ink", "black", "brown", "slate" }
 local LAYER_NAMES = { MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog", TOOLTIP = "On top" }
 local LAYER_ORDER = { "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }
+local FADE_DELAYS = { 1, 2, 5, 10 }
+local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = {
     { width = 42, height = 21 },
@@ -30,8 +32,9 @@ local SIZES = {
     { width = 104, height = 52 },
 }
 local DEFAULTS = {
-    layoutVersion = 6,
+    layoutVersion = 7,
     shown = true,
+    fade = { enabled = true, delay = 5, duration = 0.5 },
     locations = {
         chat = { enabled = true, size = 3, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -47,6 +50,10 @@ local function CopyDefaults()
     local migrateLayout = (BongoCatClassicDB.layoutVersion or 0) < 3
     local migrateSizes = (BongoCatClassicDB.layoutVersion or 0) < 5
     if BongoCatClassicDB.shown == nil then BongoCatClassicDB.shown = DEFAULTS.shown end
+    BongoCatClassicDB.fade = BongoCatClassicDB.fade or {}
+    for key, value in pairs(DEFAULTS.fade) do
+        if BongoCatClassicDB.fade[key] == nil then BongoCatClassicDB.fade[key] = value end
+    end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
@@ -74,6 +81,7 @@ local function ApplyCat(cat)
     cat:SetSize(size.width, size.height)
     cat:SetFrameStrata(location.strata or "TOOLTIP")
     cat:SetFrameLevel(100)
+    cat:SetAlpha(1)
     local fill = FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
     local outline = OUTLINE_COLOURS[location.outline] or OUTLINE_COLOURS.ink
@@ -101,7 +109,7 @@ end
 
 local function CreateCat(key, location, kind)
     local cat = CreateFrame("Frame", addonName .. key, UIParent)
-    cat.location, cat.kind, cat.lastHit = location, kind, 0
+    cat.location, cat.kind, cat.lastHit, cat.lastActivity = location, kind, 0, GetTime()
     cat.fill = cat:CreateTexture(nil, "BACKGROUND")
     cat.fill:SetAllPoints(cat)
     cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill.tga")
@@ -134,6 +142,11 @@ local function Trigger(locations)
         if db.locations[location].enabled then
             for _, cat in pairs(cats) do
                 if cat.location == location then SetPose(cat, nextPaw); cat.lastHit = now end
+                if cat.location == location then
+                    cat.lastActivity = now
+                    cat:SetAlpha(1)
+                    if cat.kind == "action" and not db.locations.action.locked then cat:EnableMouse(true) end
+                end
             end
         end
     end
@@ -238,10 +251,26 @@ local function CycleOutlineButton(parent, name, x, y)
     end)
 end
 
+local function CycleFadeButton(parent, x, y, label, values, key, suffix)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(155, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(label .. ": " .. db.fade[key] .. suffix)
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        for index, value in ipairs(values) do
+            if value == db.fade[key] then db.fade[key] = values[index % #values + 1]; break end
+        end
+        Refresh()
+    end)
+end
+
 local function OpenConfig()
     if config then config:Show(); return end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 390)
+    config:SetSize(420, 455)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetMovable(true); config:EnableMouse(true); config:RegisterForDrag("LeftButton")
@@ -272,6 +301,12 @@ local function OpenConfig()
     CycleLayerButton(config, "action", 130, -258)
     CycleOutlineButton(config, "action", 18, -288)
     Label(config, "Drag the action cat directly; lock it when positioned.", 18, -324)
+    Checkbox(config, "Fade after inactivity", 18, -354, db.fade.enabled, function(value)
+        db.fade.enabled = value
+        if not value then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
+    end)
+    CycleFadeButton(config, 18, -384, "Fade delay", FADE_DELAYS, "delay", "s")
+    CycleFadeButton(config, 190, -384, "Fade time", FADE_DURATIONS, "duration", "s")
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
@@ -320,5 +355,10 @@ Controller:SetScript("OnUpdate", function()
     local now = GetTime()
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
+        if db.fade.enabled and cat:IsShown() then
+            local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
+            cat:SetAlpha(math.max(0, math.min(1, 1 - fadeProgress)))
+            if cat.kind == "action" and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
+        end
     end
 end)
