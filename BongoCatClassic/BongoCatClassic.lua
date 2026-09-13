@@ -433,6 +433,21 @@ local function CycleFadeButton(parent, x, y, label, values, key, suffix)
     end)
 end
 
+local function FadeModeButton(parent, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(155, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(db.fade.enabled and "Fade: enabled" or "Fade: none")
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        db.fade.enabled = not db.fade.enabled
+        if not db.fade.enabled then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
+        Refresh()
+    end)
+end
+
 local function CycleSequenceButton(parent, x, y, key, label)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(150, 24)
@@ -556,10 +571,7 @@ local function OpenConfig()
     end)
     local lowerControlsY = -354
     Label(config, "Drag either cat directly; lock it when positioned.", 18, lowerControlsY)
-    Checkbox(config, "Both cats fade after inactivity", 18, lowerControlsY - 30, db.fade.enabled, function(value)
-        db.fade.enabled = value
-        if not value then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
-    end)
+    FadeModeButton(config, 18, lowerControlsY - 30)
     CycleFadeButton(config, 18, lowerControlsY - 60, "Fade delay", FADE_DELAYS, "delay", "s")
     CycleFadeButton(config, 190, lowerControlsY - 60, "Fade time", FADE_DURATIONS, "duration", "s")
     CycleSequenceButton(config, 18, lowerControlsY - 90, "minimum", "Sequence min")
