@@ -58,7 +58,7 @@ end
 
 local function CreateCat()
     cat = CreateFrame("Frame", addonName .. "Frame", UIParent)
-    cat:SetSize(256, 256)
+    cat:SetSize(420, 420)
     cat:SetClampedToScreen(true)
     cat:SetMovable(true)
     cat:EnableMouse(true)

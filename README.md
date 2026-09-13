@@ -1,6 +1,6 @@
 # BongoCat Classic
 
-A tiny Bongo Cat animation for World of Warcraft Classic. The simple white cat alternates its paws while you type in a chat edit box. Its three-pose sprite atlas is built from local basic vector shapes: idle, left tap, and right tap.
+A Bongo Cat animation for World of Warcraft Classic. The classic cat alternates its paws while you type in a chat edit box, using the credited original Bongo Cat artwork in idle, left-tap, and right-tap states.
 
 ## Install for testing
 
