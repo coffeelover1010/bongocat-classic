@@ -26,4 +26,8 @@ Each T-shirt size uses a precomputed TGA texture atlas created with Lanczos resa
 
 ## Credits
 
-Bongo Cat icon artwork from [kitgore/BongoCat](https://github.com/kitgore/BongoCat), used under MIT. Bongo Cat character/art concept by [@StrayRogue](https://x.com/StrayRogue). Original Bongo Cat video concept by @DitzyFlama. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Bongo Cat icon artwork from [kitgore/BongoCat](https://github.com/kitgore/BongoCat), used under MIT. Bongo Cat character/art concept by [@StrayRogue](https://x.com/StrayRogue). Original Bongo Cat video concept by @DitzyFlama.
+
+The optional speech-bubble textures are adapted from **“speech bubble vector in halftone style set”** by [rawpixel.com on Magnific.com](https://www.magnific.com/free-vector/speech-bubble-vector-halftone-style-set_17225402.htm). Required attribution: **designed by rawpixel.com - Magnific.com**. They are included under the Magnific Free License with attribution.
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the complete third-party notices and [BongoCatClassic/Art/SPEECH_BUBBLE_CREDIT.md](BongoCatClassic/Art/SPEECH_BUBBLE_CREDIT.md) for the copy shipped with the add-on.
