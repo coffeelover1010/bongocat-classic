@@ -319,9 +319,11 @@ local function CreateCat(key, location, kind)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
     if kind == "spell" then
         cat.bubble = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-        cat.bubble:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\ChatBubble-Backdrop", tile = true, tileSize = 16, edgeSize = 16, insets = { left = 8, right = 8, top = 8, bottom = 8 } })
-        cat.bubble:SetBackdropColor(1, 1, 1, 0.92)
-        cat.bubble:SetBackdropBorderColor(1, 1, 1, 1)
+        -- Blizzard's chat-bubble edge includes the rounded cartoon outline and tail.
+        -- Keep it dark; making this white hid that silhouette against the bubble body.
+        cat.bubble:SetBackdrop({ bgFile = "Interface\\Tooltips\\ChatBubble-Background", edgeFile = "Interface\\Tooltips\\ChatBubble-Backdrop", tile = true, tileSize = 16, edgeSize = 24, insets = { left = 12, right = 12, top = 12, bottom = 20 } })
+        cat.bubble:SetBackdropColor(1.00, 0.97, 0.88, 0.96)
+        cat.bubble:SetBackdropBorderColor(0.075, 0.075, 0.09, 1)
         cat.bubble:SetMovable(true)
         cat.bubble:EnableMouse(false)
         cat.bubble:RegisterForDrag("LeftButton")
