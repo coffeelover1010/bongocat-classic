@@ -147,10 +147,17 @@ local function CreateCat(key, location, kind)
         cat:EnableMouse(true)
         cat:RegisterForDrag("LeftButton")
         cat:SetScript("OnDragStart", function(self)
-            if not db.locations[self.location].locked then self:StartMoving() end
+            if not db.locations[self.location].locked then
+                self.dragging = true
+                self.lastActivity = GetTime()
+                self:SetAlpha(1)
+                self:StartMoving()
+            end
         end)
         cat:SetScript("OnDragStop", function(self)
             self:StopMovingOrSizing()
+            self.dragging = false
+            self.lastActivity = GetTime()
             local location = db.locations[self.location]
             if self.kind == "chat" then
                 local scale = ChatFrame1:GetEffectiveScale()
@@ -483,7 +490,7 @@ Controller:SetScript("OnUpdate", function()
     end
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
-        if db.fade.enabled and cat:IsShown() and not (config and config:IsShown()) then
+        if db.fade.enabled and cat:IsShown() and not cat.dragging and not (config and config:IsShown()) then
             local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
             cat:SetAlpha(math.max(0, math.min(1, 1 - fadeProgress)))
             if (cat.kind == "action" or cat.kind == "chat") and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
