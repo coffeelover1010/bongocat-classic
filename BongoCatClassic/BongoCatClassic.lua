@@ -46,7 +46,7 @@ local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20 }
 local SPELL_HOLD_DURATIONS = { 0.5, 1.0, 1.5, 2.0, 3.0, 5.0 }
 local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
 local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
-local SPELL_OFFSETS = { -30, -20, -10, 0, 10, 20, 30 }
+local SPELL_ICON_SIZES = { 40, 48, 64, 80, 96 }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -73,7 +73,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconZoom = 0, iconBorder = true, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconSize = 64, iconZoom = 0, iconBorder = true, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -198,6 +198,7 @@ local function ApplyCat(cat)
     elseif cat.kind == "spell" then
         cat.spellIconFrame:SetFrameStrata(location.strata or "TOOLTIP")
         cat.spellIconFrame:SetFrameLevel(10)
+        cat.spellIconFrame:SetSize(location.iconSize or 64, location.iconSize or 64)
         cat.spellIconFrame:ClearAllPoints()
         cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", location.x or 0, location.y or -80)
         local zoom = location.iconZoom or 0
@@ -713,7 +714,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (spellSettingsExpanded and 500 or 550))
+    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (spellSettingsExpanded and 480 or 550))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -767,8 +768,7 @@ local function OpenConfig()
         Label(config, "Spell icon", 18, -206)
         CycleSpellIconButton(config, 18, -228, "iconZoom", "Icon zoom", SPELL_ICON_ZOOMS, function(value) return string.format("%d%%", value * 100) end)
         SpellBorderButton(config, 180, -228)
-        CycleSpellIconButton(config, 18, -258, "catOffsetX", "Cat offset X", SPELL_OFFSETS, function(value) return value end)
-        CycleSpellIconButton(config, 180, -258, "catOffsetY", "Cat offset Y", SPELL_OFFSETS, function(value) return value end)
+        CycleSpellIconButton(config, 18, -258, "iconSize", "Icon size", SPELL_ICON_SIZES, function(value) return value .. " px" end)
         Label(config, "Spell sequence", 18, -296)
         CycleSequenceButton(config, 18, -318, "minimum", "Sequence min", db.spellSequence)
         CycleSequenceButton(config, 180, -318, "maximum", "Sequence max", db.spellSequence)
