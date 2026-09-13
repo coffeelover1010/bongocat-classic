@@ -256,7 +256,7 @@ local function HookChatEditBoxes()
                 if userInput and self:HasFocus() then Trigger({ "chat" }) end
             end)
             editBox:HookScript("OnShow", function()
-                if db.locations.chat.onlyWhileEditing then activeLocation = "chat"; ApplyAll() end
+                if db.locations.chat.onlyWhileEditing then ApplyAll() end
             end)
             editBox:HookScript("OnHide", function()
                 if db.locations.chat.onlyWhileEditing then ApplyAll() end
