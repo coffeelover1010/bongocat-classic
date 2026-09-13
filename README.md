@@ -1,6 +1,6 @@
 # BongoCat Classic
 
-A tiny, original Bongo Cat-style animation for World of Warcraft Classic. The cat bops alternately while you type in a chat edit box. It uses only WoW's built-in solid texture, so there are no third-party images or bundled game assets.
+A tiny Bongo Cat animation for World of Warcraft Classic. The simple white cat alternates its paws while you type in a chat edit box. Its three-pose sprite atlas is built from local basic vector shapes: idle, left tap, and right tap.
 
 ## Install for testing
 
@@ -22,3 +22,7 @@ A tiny, original Bongo Cat-style animation for World of Warcraft Classic. The ca
 ## Test notes
 
 This first version is deliberately small and client-safe. It listens for changes to the active Blizzard chat box; it does not read or store what you type. Please report the exact Classic client version and any error message if the typing animation does not fire.
+
+## Credits
+
+Bongo Cat character/art concept by [@StrayRogue](https://x.com/StrayRogue). Original Bongo Cat video concept by @DitzyFlama. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
