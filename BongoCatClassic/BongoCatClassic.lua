@@ -36,6 +36,11 @@ local FADE_DELAYS = { 1, 2, 5, 10 }
 local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20, 0.25, 0.33, 0.50 }
+local ACTION_TRIGGER_DEFAULTS = {
+    actionBar = true, castStart = true, castSuccess = true, channelStart = true,
+    combat = true, enterCombat = true, movement = true, turning = true,
+    targetChange = true, equipment = true, bags = true,
+}
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = {
     { width = 42, height = 21 },
@@ -49,6 +54,7 @@ local DEFAULTS = {
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
+    actionTriggers = ACTION_TRIGGER_DEFAULTS,
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -77,6 +83,10 @@ local function CopyDefaults()
     if BongoCatClassicDB.actionSequence.minimum == nil then BongoCatClassicDB.actionSequence.minimum = DEFAULTS.actionSequence.minimum end
     if BongoCatClassicDB.actionSequence.maximum == nil then BongoCatClassicDB.actionSequence.maximum = DEFAULTS.actionSequence.maximum end
     if BongoCatClassicDB.actionSequence.interval == nil then BongoCatClassicDB.actionSequence.interval = DEFAULTS.actionSequence.interval end
+    BongoCatClassicDB.actionTriggers = BongoCatClassicDB.actionTriggers or {}
+    for key, value in pairs(ACTION_TRIGGER_DEFAULTS) do
+        if BongoCatClassicDB.actionTriggers[key] == nil then BongoCatClassicDB.actionTriggers[key] = value end
+    end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
@@ -218,7 +228,8 @@ local function Trigger(locations, fromSequence)
     end
 end
 
-local function TriggerGlobal()
+local function TriggerGlobal(condition)
+    if condition and not db.actionTriggers[condition] then return end
     local now = GetTime()
     -- A short gate turns rapid input into an intentional rhythm instead of a flicker.
     if now - lastGlobalInput < 0.10 then return end
@@ -439,7 +450,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 520)
+    config:SetSize(420, 700)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -477,16 +488,28 @@ local function OpenConfig()
     ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -260)
     ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -260)
     CycleLayerButton(config, "action", 18, -290)
-    Label(config, "Drag either cat directly; lock it when positioned.", 18, -326)
-    Checkbox(config, "Fade after inactivity", 18, -356, db.fade.enabled, function(value)
+    Label(config, "Action-cat triggers", 18, -326)
+    Checkbox(config, "Action bar use", 18, -348, db.actionTriggers.actionBar, function(value) db.actionTriggers.actionBar = value end)
+    Checkbox(config, "Spell cast starts", 18, -372, db.actionTriggers.castStart, function(value) db.actionTriggers.castStart = value end)
+    Checkbox(config, "Spell cast completes", 18, -396, db.actionTriggers.castSuccess, function(value) db.actionTriggers.castSuccess = value end)
+    Checkbox(config, "Channel starts", 18, -420, db.actionTriggers.channelStart, function(value) db.actionTriggers.channelStart = value end)
+    Checkbox(config, "Combat damage", 18, -444, db.actionTriggers.combat, function(value) db.actionTriggers.combat = value end)
+    Checkbox(config, "Enter combat", 18, -468, db.actionTriggers.enterCombat, function(value) db.actionTriggers.enterCombat = value end)
+    Checkbox(config, "Movement", 200, -348, db.actionTriggers.movement, function(value) db.actionTriggers.movement = value end)
+    Checkbox(config, "Turning", 200, -372, db.actionTriggers.turning, function(value) db.actionTriggers.turning = value end)
+    Checkbox(config, "Target changes", 200, -396, db.actionTriggers.targetChange, function(value) db.actionTriggers.targetChange = value end)
+    Checkbox(config, "Equipment changes", 200, -420, db.actionTriggers.equipment, function(value) db.actionTriggers.equipment = value end)
+    Checkbox(config, "Bag updates", 200, -444, db.actionTriggers.bags, function(value) db.actionTriggers.bags = value end)
+    Label(config, "Drag either cat directly; lock it when positioned.", 18, -502)
+    Checkbox(config, "Fade after inactivity", 18, -532, db.fade.enabled, function(value)
         db.fade.enabled = value
         if not value then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
     end)
-    CycleFadeButton(config, 18, -386, "Fade delay", FADE_DELAYS, "delay", "s")
-    CycleFadeButton(config, 190, -386, "Fade time", FADE_DURATIONS, "duration", "s")
-    CycleSequenceButton(config, 18, -416, "minimum", "Sequence min")
-    CycleSequenceButton(config, 180, -416, "maximum", "Sequence max")
-    CycleSequenceIntervalButton(config, 18, -446)
+    CycleFadeButton(config, 18, -562, "Fade delay", FADE_DELAYS, "delay", "s")
+    CycleFadeButton(config, 190, -562, "Fade time", FADE_DURATIONS, "duration", "s")
+    CycleSequenceButton(config, 18, -592, "minimum", "Sequence min")
+    CycleSequenceButton(config, 180, -592, "maximum", "Sequence max")
+    CycleSequenceIntervalButton(config, 18, -622)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
@@ -531,12 +554,28 @@ Controller:SetScript("OnEvent", function(_, event, unit)
         ApplyAll()
         HookChatEditBoxes()
         -- Covers action-bar mouse clicks and bound action keys in addition to cast events.
-        if type(UseAction) == "function" then hooksecurefunc("UseAction", TriggerGlobal) end
+        if type(UseAction) == "function" then hooksecurefunc("UseAction", function() TriggerGlobal("actionBar") end) end
         Print("loaded. Use /bc config to place and size cats.")
-    elseif event == "UNIT_SPELLCAST_SUCCEEDED" or event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_COMBAT" then
-        if unit == "player" then TriggerGlobal() end
-    else
-        TriggerGlobal()
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        if unit == "player" then TriggerGlobal("castSuccess") end
+    elseif event == "UNIT_SPELLCAST_START" then
+        if unit == "player" then TriggerGlobal("castStart") end
+    elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
+        if unit == "player" then TriggerGlobal("channelStart") end
+    elseif event == "UNIT_COMBAT" then
+        if unit == "player" then TriggerGlobal("combat") end
+    elseif event == "PLAYER_STARTED_MOVING" then
+        TriggerGlobal("movement")
+    elseif event == "PLAYER_STARTED_TURNING" then
+        TriggerGlobal("turning")
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        TriggerGlobal("targetChange")
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        TriggerGlobal("enterCombat")
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+        TriggerGlobal("equipment")
+    elseif event == "BAG_UPDATE_DELAYED" then
+        TriggerGlobal("bags")
     end
 end)
 

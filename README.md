@@ -13,7 +13,7 @@ A Bongo Cat animation for World of Warcraft Classic. The add-on uses the MIT-lic
 ## Commands
 
 - `/bc` — show help.
-- `/bc config` — toggle either cat, optionally show the chat cat only while its input is open, cycle compact T-shirt sizes (XS–XL), open native colour pickers for fill and outline, choose from Background through On top UI layers, lock its drag position, adjust inactivity fade settings, and set the global action sequence length and tap interval.
+- `/bc config` — toggle either cat, optionally show the chat cat only while its input is open, cycle compact T-shirt sizes (XS–XL), open native colour pickers for fill and outline, choose from Background through On top UI layers, lock its drag position, select the action-cat triggers individually, adjust inactivity fade settings, and set the global action sequence length and tap interval.
 - `/bc show`, `/bc hide`, `/bc toggle`
 - `/bc reset` — restore the placement defaults.
 - `/bc test` — play a short test animation.
