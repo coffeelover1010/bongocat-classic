@@ -95,6 +95,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        nameplate = { enabled = false, size = 1, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, iconBorderStyle = "quickslot", catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleStyle = "oval", bubbleFillColour = FILL_COLOURS.cream, bubbleOutlineColour = OUTLINE_COLOURS.ink, bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
@@ -256,11 +257,18 @@ local function CastingBar()
     return CastingBarFrame or PlayerCastingBarFrame or UIParent
 end
 
+local function TargetNamePlate()
+    if C_NamePlate and C_NamePlate.GetNamePlateForUnit then
+        return C_NamePlate.GetNamePlateForUnit("target")
+    end
+end
+
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
     local textureSize = SIZE_NAMES[location.size]
-    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or MainMenuBar)
+    local namePlate = cat.kind == "nameplate" and TargetNamePlate() or nil
+    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or (namePlate or MainMenuBar))
     cat:SetSize(size.width, size.height)
     cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill-" .. textureSize .. ".tga")
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
@@ -302,6 +310,13 @@ local function ApplyCat(cat)
         cat.spellIconFrame.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
         -- Present a WeakAuras-style spell icon slightly below screen centre; the cat's paws overlap it.
         cat:SetPoint("BOTTOM", cat.spellIconFrame, "TOP", location.catOffsetX or 0, location.catOffsetY or -10)
+    elseif cat.kind == "nameplate" then
+        if namePlate then
+            -- Rest on the target plate's top edge, leaving the name readable.
+            cat:SetPoint("BOTTOM", namePlate, "TOP", 0, -2)
+        else
+            cat:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+        end
     elseif location.placed then
         cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
     else
@@ -321,10 +336,11 @@ local function ApplyCat(cat)
     local spellPlaying = cat.location == "spell" and GetTime() < spellPlayback.visibleUntil
     local locationEnabled = location.enabled
     if cat.kind == "spell" then locationEnabled = location.catEnabled end
-    local activeHere = cat.location == activeLocation or isCompanion or spellPlaying
+    local activeHere = cat.location == activeLocation or isCompanion or spellPlaying or cat.kind == "nameplate"
     local spellDisplayEnabled = cat.kind == "spell" and (location.catEnabled or location.iconEnabled)
     local spellShouldDisplay = previewingConfig or (db.shown and spellDisplayEnabled and activeHere)
-    local shouldShow = previewingConfig or (db.shown and locationEnabled and activeHere and not conditionalChatHidden)
+    local namePlateReady = cat.kind ~= "nameplate" or namePlate ~= nil
+    local shouldShow = previewingConfig or (db.shown and locationEnabled and activeHere and namePlateReady and not conditionalChatHidden)
     if shouldShow then cat:Show() else cat:Hide() end
     if cat.kind == "spell" then
         if spellShouldDisplay and (previewingConfig or location.iconEnabled) then cat.spellIconFrame:Show() else cat.spellIconFrame:Hide() end
@@ -494,6 +510,7 @@ local function TriggerGlobal(condition)
     if now - lastGlobalInput < 0.10 then return end
     lastGlobalInput = now
     if activeLocation == "spell" and now < spellPlayback.visibleUntil then Trigger({ "action" }, true) else Trigger({ "action" }) end
+    Trigger({ "nameplate" }, true)
     local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
     globalSequence.remaining = math.max(globalSequence.remaining, steps - 1)
     globalSequence.nextAt = now + db.actionSequence.interval
@@ -1047,6 +1064,11 @@ local function OpenConfig()
         actionTriggersExpanded = not actionTriggersExpanded
         config:Hide(); config = nil; OpenConfig()
     end)
+    Label(config, "Nameplate cat — trial: sits above your target.", 220, -318)
+    Checkbox(config, "Enabled", 220, -340, db.locations.nameplate.enabled, function(value)
+        db.locations.nameplate.enabled = value; ApplyAll()
+    end)
+    CycleSizeButton(config, "nameplate", 220, -366, 3)
     local lowerControlsY = -354
     Label(config, "Drag cats directly, then lock them when happy.", 18, lowerControlsY)
     FadeModeButton(config, 18, lowerControlsY - 30)
@@ -1086,6 +1108,8 @@ Controller:RegisterEvent("PLAYER_LOGIN")
 Controller:RegisterEvent("PLAYER_STARTED_MOVING")
 Controller:RegisterEvent("PLAYER_STARTED_TURNING")
 Controller:RegisterEvent("PLAYER_TARGET_CHANGED")
+Controller:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+Controller:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 Controller:RegisterEvent("PLAYER_REGEN_DISABLED")
 Controller:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 Controller:RegisterEvent("UNIT_SPELLCAST_START")
@@ -1099,6 +1123,7 @@ Controller:SetScript("OnEvent", function(_, event, unit, castGUID, spellID)
         CopyDefaults()
         CreateCat("Chat", "chat", "chat")
         CreateCat("Action", "action", "action")
+        CreateCat("Nameplate", "nameplate", "nameplate")
         CreateCat("Spell", "spell", "spell")
         ApplyAll()
         HookChatEditBoxes()
@@ -1131,6 +1156,9 @@ Controller:SetScript("OnEvent", function(_, event, unit, castGUID, spellID)
         TriggerGlobal("turning")
     elseif event == "PLAYER_TARGET_CHANGED" then
         TriggerGlobal("targetChange")
+        ApplyAll()
+    elseif event == "NAME_PLATE_UNIT_ADDED" or event == "NAME_PLATE_UNIT_REMOVED" then
+        ApplyAll()
     elseif event == "PLAYER_REGEN_DISABLED" then
         TriggerGlobal("enterCombat")
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
