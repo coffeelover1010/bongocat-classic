@@ -28,7 +28,11 @@ def write_atlas(source: Image.Image, output: Path, frame_size: int) -> None:
 
 def main(art_directory: str) -> None:
     art = Path(art_directory)
-    outline = Image.open(art / "BongoCatClassic.tga").convert("RGBA")
+    original_outline = Image.open(art / "BongoCatClassic.tga").convert("RGBA")
+    # WoW's SetVertexColor multiplies source RGB. Use white source pixels so every
+    # user-selected outline colour can be represented, while preserving the alpha mask.
+    outline = Image.new("RGBA", original_outline.size, (255, 255, 255, 0))
+    outline.putalpha(original_outline.getchannel("A"))
     fill = Image.open(art / "BongoCatClassicFill.tga").convert("RGBA")
     for label, frame_size in SIZES.items():
         write_atlas(outline, art / f"BongoCatClassic-{label}.tga", frame_size)
