@@ -49,7 +49,7 @@ local DEFAULTS = {
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5 },
     locations = {
-        chat = { enabled = true, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
@@ -103,6 +103,14 @@ local function ClampChatLocation(location, size)
     location.y = math.max(-marginY, math.min(ChatFrame1:GetHeight() + marginY - size.height, location.y or 0))
 end
 
+local function ChatInputOpen()
+    for index = 1, NUM_CHAT_WINDOWS do
+        local editBox = _G["ChatFrame" .. index .. "EditBox"]
+        if editBox and editBox:IsShown() then return true end
+    end
+    return false
+end
+
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
@@ -133,7 +141,8 @@ local function ApplyCat(cat)
         cat:SetPoint("BOTTOM", MainMenuBar, "TOP", 0, 0)
     end
     if cat.kind == "chat" or cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
-    if db.shown and location.enabled and cat.location == activeLocation then cat:Show() else cat:Hide() end
+    local conditionalChatHidden = cat.location == "chat" and location.onlyWhileEditing and not ChatInputOpen()
+    if db.shown and location.enabled and cat.location == activeLocation and not conditionalChatHidden then cat:Show() else cat:Hide() end
 end
 
 local function ApplyAll()
@@ -231,6 +240,12 @@ local function HookChatEditBoxes()
             editBox.BongoCatClassicHooked = true
             editBox:HookScript("OnTextChanged", function(self, userInput)
                 if userInput and self:HasFocus() then Trigger({ "chat" }) end
+            end)
+            editBox:HookScript("OnShow", function()
+                if db.locations.chat.onlyWhileEditing then activeLocation = "chat"; ApplyAll() end
+            end)
+            editBox:HookScript("OnHide", function()
+                if db.locations.chat.onlyWhileEditing then ApplyAll() end
             end)
         end
     end
@@ -403,7 +418,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 460)
+    config:SetSize(420, 490)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -423,30 +438,33 @@ local function OpenConfig()
         db.locations.chat.locked = value; ApplyAll()
     end)
     CycleSizeButton(config, "chat", 238, -76)
-    ColourButton(config, "chat", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -106)
-    ColourButton(config, "chat", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -106)
-    CycleLayerButton(config, "chat", 18, -136)
-    Label(config, "Action cat — reacts to player actions", 18, -178)
-    Checkbox(config, "Enabled", 18, -200, db.locations.action.enabled, function(value)
+    Checkbox(config, "Only while input is open", 18, -104, db.locations.chat.onlyWhileEditing, function(value)
+        db.locations.chat.onlyWhileEditing = value; ApplyAll()
+    end)
+    ColourButton(config, "chat", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -134)
+    ColourButton(config, "chat", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -134)
+    CycleLayerButton(config, "chat", 18, -164)
+    Label(config, "Action cat — reacts to player actions", 18, -206)
+    Checkbox(config, "Enabled", 18, -228, db.locations.action.enabled, function(value)
         db.locations.action.enabled = value; ApplyAll()
     end)
-    Checkbox(config, "Lock position", 110, -200, db.locations.action.locked, function(value)
+    Checkbox(config, "Lock position", 110, -228, db.locations.action.locked, function(value)
         db.locations.action.locked = value
         ApplyAll()
     end)
-    CycleSizeButton(config, "action", 238, -202)
-    ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -232)
-    ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -232)
-    CycleLayerButton(config, "action", 18, -262)
-    Label(config, "Drag either cat directly; lock it when positioned.", 18, -298)
-    Checkbox(config, "Fade after inactivity", 18, -328, db.fade.enabled, function(value)
+    CycleSizeButton(config, "action", 238, -230)
+    ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -260)
+    ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -260)
+    CycleLayerButton(config, "action", 18, -290)
+    Label(config, "Drag either cat directly; lock it when positioned.", 18, -326)
+    Checkbox(config, "Fade after inactivity", 18, -356, db.fade.enabled, function(value)
         db.fade.enabled = value
         if not value then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
     end)
-    CycleFadeButton(config, 18, -358, "Fade delay", FADE_DELAYS, "delay", "s")
-    CycleFadeButton(config, 190, -358, "Fade time", FADE_DURATIONS, "duration", "s")
-    CycleSequenceButton(config, 18, -388, "minimum", "Sequence min")
-    CycleSequenceButton(config, 180, -388, "maximum", "Sequence max")
+    CycleFadeButton(config, 18, -386, "Fade delay", FADE_DELAYS, "delay", "s")
+    CycleFadeButton(config, 190, -386, "Fade time", FADE_DURATIONS, "duration", "s")
+    CycleSequenceButton(config, 18, -416, "minimum", "Sequence min")
+    CycleSequenceButton(config, 180, -416, "maximum", "Sequence max")
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
