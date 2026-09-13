@@ -5,11 +5,13 @@ local actionTriggersExpanded = false
 local spellSettingsExpanded = false
 local spellTriggersExpanded = false
 local bubbleSettingsExpanded = false
+local trialSettingsExpanded = false
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
 local spellPlayback = { remaining = 0, nextAt = 0, visibleUntil = 0 }
 local mountedTapping = { active = false, nextAt = 0 }
+local castbarTapping = { active = false, nextAt = 0 }
 local startedSpellCasts = {}
 local lastAuraTrigger = 0
 local activeLocation = "chat"
@@ -96,6 +98,7 @@ local DEFAULTS = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         nameplate = { enabled = false, size = 1, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        castbar = { enabled = false, size = 2, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, iconBorderStyle = "quickslot", catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleStyle = "oval", bubbleFillColour = FILL_COLOURS.cream, bubbleOutlineColour = OUTLINE_COLOURS.ink, bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
@@ -268,7 +271,7 @@ local function ApplyCat(cat)
     local size = SIZES[location.size]
     local textureSize = SIZE_NAMES[location.size]
     local namePlate = cat.kind == "nameplate" and TargetNamePlate() or nil
-    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or (namePlate or MainMenuBar))
+    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or (cat.kind == "castbar" and CastingBar() or (namePlate or MainMenuBar)))
     cat:SetSize(size.width, size.height)
     cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill-" .. textureSize .. ".tga")
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
@@ -317,6 +320,9 @@ local function ApplyCat(cat)
         else
             cat:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
         end
+    elseif cat.kind == "castbar" then
+        -- The paws overlap the upper edge of the player's cast bar.
+        cat:SetPoint("BOTTOM", CastingBar(), "TOP", 0, -2)
     elseif location.placed then
         cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
     else
@@ -336,7 +342,7 @@ local function ApplyCat(cat)
     local spellPlaying = cat.location == "spell" and GetTime() < spellPlayback.visibleUntil
     local locationEnabled = location.enabled
     if cat.kind == "spell" then locationEnabled = location.catEnabled end
-    local activeHere = cat.location == activeLocation or isCompanion or spellPlaying or cat.kind == "nameplate"
+    local activeHere = cat.location == activeLocation or isCompanion or spellPlaying or cat.kind == "nameplate" or (cat.kind == "castbar" and castbarTapping.active)
     local spellDisplayEnabled = cat.kind == "spell" and (location.catEnabled or location.iconEnabled)
     local spellShouldDisplay = previewingConfig or (db.shown and spellDisplayEnabled and activeHere)
     local namePlateReady = cat.kind ~= "nameplate" or namePlate ~= nil
@@ -541,6 +547,19 @@ local function TriggerSpell(spellID, icon)
     spellPlayback.remaining = steps
     spellPlayback.nextAt = now + SPELL_APPEAR_DELAY
     spellPlayback.visibleUntil = now + SPELL_APPEAR_DELAY + steps * db.spellSequence.interval + db.spellSequence.hold
+end
+
+local function StartCastbarCat()
+    if not db.locations.castbar.enabled then return end
+    castbarTapping.active = true
+    castbarTapping.nextAt = GetTime()
+    ApplyAll()
+end
+
+local function StopCastbarCat()
+    if not castbarTapping.active then return end
+    castbarTapping.active = false
+    ApplyAll()
 end
 
 local function TriggerAura(aura)
@@ -887,7 +906,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (bubbleSettingsExpanded and 400 or (spellSettingsExpanded and 540 or 550)))
+    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded or trialSettingsExpanded) and 360 or (bubbleSettingsExpanded and 400 or (spellSettingsExpanded and 540 or 550)))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -921,6 +940,27 @@ local function OpenConfig()
         CycleSpellIconButton(config, 180, -258, "bubbleHeight", "Bubble height", SPELL_BUBBLE_DIMENSIONS, function(value) return value .. " px" end)
         Label(config, "Drag the bubble itself to move everything inside it.", 18, -296)
         Label(config, "Bubble art: designed by rawpixel.com - Magnific.com", 18, -318)
+        local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
+        close:SetScript("OnClick", function() config:Hide() end)
+        ApplyAll()
+        return
+    end
+    if trialSettingsExpanded then
+        title:SetText("Experimental placements")
+        local back = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        back:SetSize(190, 22); back:SetPoint("TOPLEFT", 18, -52); back:SetText("Back to placements")
+        back:SetScript("OnClick", function()
+            trialSettingsExpanded = false
+            config:Hide(); config = nil; OpenConfig()
+        end)
+        Label(config, "Nameplate cat — sits above your selected target.", 18, -84)
+        Checkbox(config, "Enabled", 18, -108, db.locations.nameplate.enabled, function(value) db.locations.nameplate.enabled = value; ApplyAll() end)
+        CycleSizeButton(config, "nameplate", 150, -110, 3)
+        Label(config, "Cast-bar cat — taps while you cast or channel.", 18, -150)
+        Checkbox(config, "Enabled", 18, -174, db.locations.castbar.enabled, function(value) db.locations.castbar.enabled = value; ApplyAll() end)
+        CycleSizeButton(config, "castbar", 150, -176, 3)
+        Label(config, "Both are trial features and use your cat colours.", 18, -216)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
@@ -1064,11 +1104,12 @@ local function OpenConfig()
         actionTriggersExpanded = not actionTriggersExpanded
         config:Hide(); config = nil; OpenConfig()
     end)
-    Label(config, "Nameplate cat — trial: sits above your target.", 220, -318)
-    Checkbox(config, "Enabled", 220, -340, db.locations.nameplate.enabled, function(value)
-        db.locations.nameplate.enabled = value; ApplyAll()
+    local trials = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+    trials:SetSize(180, 22); trials:SetPoint("TOPLEFT", 220, -318); trials:SetText("Trial placements")
+    trials:SetScript("OnClick", function()
+        trialSettingsExpanded = true
+        config:Hide(); config = nil; OpenConfig()
     end)
-    CycleSizeButton(config, "nameplate", 220, -366, 3)
     local lowerControlsY = -354
     Label(config, "Drag cats directly, then lock them when happy.", 18, lowerControlsY)
     FadeModeButton(config, 18, lowerControlsY - 30)
@@ -1113,7 +1154,11 @@ Controller:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 Controller:RegisterEvent("PLAYER_REGEN_DISABLED")
 Controller:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 Controller:RegisterEvent("UNIT_SPELLCAST_START")
+Controller:RegisterEvent("UNIT_SPELLCAST_STOP")
+Controller:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
+Controller:RegisterEvent("UNIT_SPELLCAST_FAILED")
 Controller:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+Controller:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
 Controller:RegisterEvent("UNIT_AURA")
 Controller:RegisterEvent("UNIT_COMBAT")
 Controller:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
@@ -1124,6 +1169,7 @@ Controller:SetScript("OnEvent", function(_, event, unit, castGUID, spellID)
         CreateCat("Chat", "chat", "chat")
         CreateCat("Action", "action", "action")
         CreateCat("Nameplate", "nameplate", "nameplate")
+        CreateCat("Castbar", "castbar", "castbar")
         CreateCat("Spell", "spell", "spell")
         ApplyAll()
         HookChatEditBoxes()
@@ -1139,13 +1185,15 @@ Controller:SetScript("OnEvent", function(_, event, unit, castGUID, spellID)
     elseif event == "UNIT_SPELLCAST_START" then
         if unit == "player" then
             if castGUID then startedSpellCasts[castGUID] = true end
-            TriggerGlobal("castStart"); if db.spellTriggers.castStart then TriggerSpell(spellID) end
+            TriggerGlobal("castStart"); StartCastbarCat(); if db.spellTriggers.castStart then TriggerSpell(spellID) end
         end
     elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
         if unit == "player" then
             if castGUID then startedSpellCasts[castGUID] = true end
-            TriggerGlobal("channelStart"); if db.spellTriggers.channelStart then TriggerSpell(spellID) end
+            TriggerGlobal("channelStart"); StartCastbarCat(); if db.spellTriggers.channelStart then TriggerSpell(spellID) end
         end
+    elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+        if unit == "player" then StopCastbarCat() end
     elseif event == "UNIT_AURA" then
         if unit == "player" then HandlePlayerAuras(castGUID) end
     elseif event == "UNIT_COMBAT" then
@@ -1170,6 +1218,10 @@ end)
 
 Controller:SetScript("OnUpdate", function()
     local now = GetTime()
+    if castbarTapping.active and now >= castbarTapping.nextAt then
+        Trigger({ "castbar" }, true)
+        castbarTapping.nextAt = now + db.spellSequence.interval
+    end
     local riding = db and db.spellTriggers.riding and IsMounted() and db.shown and (db.locations.spell.catEnabled or db.locations.spell.iconEnabled)
     if riding then
         spellPlayback.remaining = 0
