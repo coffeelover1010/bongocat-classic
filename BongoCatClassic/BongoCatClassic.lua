@@ -9,6 +9,7 @@ local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
 local spellPlayback = { remaining = 0, nextAt = 0, visibleUntil = 0 }
+local mountedTapping = { active = false, nextAt = 0 }
 local startedSpellCasts = {}
 local lastAuraTrigger = 0
 local activeLocation = "chat"
@@ -88,7 +89,7 @@ local DEFAULTS = {
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
     spellSequence = { minimum = 5, maximum = 5, interval = 0.12, hold = 1.5 },
-    spellTriggers = { castStart = true, channelStart = true, instantCasts = true, buffs = false, debuffs = false },
+    spellTriggers = { castStart = true, channelStart = true, instantCasts = true, buffs = false, debuffs = false, riding = false },
     actionTriggers = ACTION_TRIGGER_DEFAULTS,
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -912,7 +913,8 @@ local function OpenConfig()
         Checkbox(config, "Instant spells", 18, -162, db.spellTriggers.instantCasts, function(value) db.spellTriggers.instantCasts = value end)
         Checkbox(config, "Buff gained (good effect)", 18, -188, db.spellTriggers.buffs, function(value) db.spellTriggers.buffs = value end)
         Checkbox(config, "Debuff gained (bad effect)", 18, -214, db.spellTriggers.debuffs, function(value) db.spellTriggers.debuffs = value end)
-        Label(config, "Buffs and debuffs are effects on your character.", 18, -246)
+        Checkbox(config, "Keep tapping while riding", 18, -240, db.spellTriggers.riding, function(value) db.spellTriggers.riding = value end)
+        Label(config, "Riding keeps the spell cat tapping until you dismount.", 18, -272)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
@@ -1128,6 +1130,28 @@ end)
 
 Controller:SetScript("OnUpdate", function()
     local now = GetTime()
+    local riding = db and db.spellTriggers.riding and IsMounted() and db.shown and (db.locations.spell.catEnabled or db.locations.spell.iconEnabled)
+    if riding then
+        spellPlayback.remaining = 0
+        if not mountedTapping.active then
+            mountedTapping.active = true
+            mountedTapping.nextAt = now
+            activeLocation = "spell"
+            ApplyAll()
+        end
+        if now >= mountedTapping.nextAt then
+            Trigger({ "spell" }, true)
+            mountedTapping.nextAt = now + db.spellSequence.interval
+        end
+        -- Hold the spell location active without restarting a finite cast sequence.
+        spellPlayback.visibleUntil = now + 0.5
+    elseif mountedTapping.active then
+        mountedTapping.active = false
+        spellPlayback.remaining = 0
+        spellPlayback.visibleUntil = now
+        if activeLocation == "spell" then activeLocation = companionLocation end
+        ApplyAll()
+    end
     if globalSequence.remaining > 0 and now >= globalSequence.nextAt then
         Trigger({ "action" }, true)
         globalSequence.remaining = globalSequence.remaining - 1
