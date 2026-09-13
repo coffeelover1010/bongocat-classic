@@ -63,7 +63,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, size = 5, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, size = 5, x = 0, y = -80, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -169,6 +169,8 @@ local function ApplyCat(cat)
     elseif cat.kind == "spell" then
         cat.spellIconFrame:SetFrameStrata(location.strata or "TOOLTIP")
         cat.spellIconFrame:SetFrameLevel(10)
+        cat.spellIconFrame:ClearAllPoints()
+        cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", location.x or 0, location.y or -80)
         -- Present a WeakAuras-style spell icon slightly below screen centre; the cat's paws overlap it.
         cat:SetPoint("BOTTOM", cat.spellIconFrame, "TOP", 0, -10)
     elseif location.placed then
@@ -177,7 +179,11 @@ local function ApplyCat(cat)
         -- The cat's paws overlap the upper edge of the action bar.
         cat:SetPoint("BOTTOM", MainMenuBar, "TOP", 0, 0)
     end
-    if cat.kind == "chat" or cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
+    if cat.kind == "spell" then
+        cat:EnableMouse(config and config:IsShown())
+    elseif cat.kind == "chat" or cat.kind == "action" then
+        cat:EnableMouse(db.shown and location.enabled and not location.locked)
+    end
     local conditionalChatHidden = cat.location == "chat" and location.onlyWhileEditing and not ChatInputOpen()
     local previewingConfig = config and config:IsShown()
     local shouldShow = previewingConfig or (db.shown and location.enabled and cat.location == activeLocation and not conditionalChatHidden)
@@ -208,12 +214,22 @@ local function CreateCat(key, location, kind)
         cat.spellIconFrame.icon:SetAllPoints(cat.spellIconFrame)
         cat.spellIconFrame.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     end
-    if kind == "chat" or kind == "action" then
+    if kind == "chat" or kind == "action" or kind == "spell" then
         cat:SetMovable(true)
         cat:EnableMouse(true)
         cat:RegisterForDrag("LeftButton")
         cat:SetScript("OnDragStart", function(self)
-            if not db.locations[self.location].locked then
+            if self.kind == "spell" then
+                if not (config and config:IsShown()) then return end
+                local catX, catY = self:GetCenter()
+                local iconX, iconY = self.spellIconFrame:GetCenter()
+                self.spellDragOffsetX = catX - iconX
+                self.spellDragOffsetY = catY - iconY
+                self.dragging = true
+                self.lastActivity = GetTime()
+                self:SetAlpha(1)
+                self:StartMoving()
+            elseif not db.locations[self.location].locked then
                 self.dragging = true
                 self.lastActivity = GetTime()
                 self:SetAlpha(1)
@@ -225,7 +241,15 @@ local function CreateCat(key, location, kind)
             self.dragging = false
             self.lastActivity = GetTime()
             local location = db.locations[self.location]
-            if self.kind == "chat" then
+            if self.kind == "spell" then
+                local scale = UIParent:GetEffectiveScale()
+                local x, y = self:GetCenter()
+                local parentX, parentY = UIParent:GetCenter()
+                location.x = math.floor((x - parentX - (self.spellDragOffsetX or 0)) / scale + 0.5)
+                location.y = math.floor((y - parentY - (self.spellDragOffsetY or 0)) / scale + 0.5)
+                self.spellDragOffsetX, self.spellDragOffsetY = nil, nil
+                ApplyCat(self)
+            elseif self.kind == "chat" then
                 local scale = ChatFrame1:GetEffectiveScale()
                 local x = (self:GetLeft() - ChatFrame1:GetLeft()) / scale
                 local y = (self:GetBottom() - ChatFrame1:GetBottom()) / scale
@@ -553,7 +577,7 @@ local function OpenConfig()
             spellSettingsExpanded = false
             config:Hide(); config = nil; OpenConfig()
         end)
-        Label(config, "Spell cat — appears over each cast's spell icon", 18, -84)
+        Label(config, "Spell cat — drag it while this window is open", 18, -84)
         Checkbox(config, "Enabled", 18, -106, db.locations.spell.enabled, function(value) db.locations.spell.enabled = value; ApplyAll() end)
         CycleSizeButton(config, "spell", 150, -108)
         ColourButton(config, "spell", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -138)
