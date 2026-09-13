@@ -9,6 +9,7 @@ local globalSequence = { remaining = 0, nextAt = 0 }
 local spellPlayback = { remaining = 0, nextAt = 0, visibleUntil = 0 }
 local startedSpellCasts = {}
 local activeLocation = "chat"
+local companionLocation = "chat"
 
 local SIZE_NAMES = { "XS", "S", "M", "L", "XL" }
 local FILL_COLOURS = {
@@ -186,7 +187,8 @@ local function ApplyCat(cat)
     end
     local conditionalChatHidden = cat.location == "chat" and location.onlyWhileEditing and not ChatInputOpen()
     local previewingConfig = config and config:IsShown()
-    local shouldShow = previewingConfig or (db.shown and location.enabled and cat.location == activeLocation and not conditionalChatHidden)
+    local isCompanion = activeLocation == "spell" and cat.location == companionLocation
+    local shouldShow = previewingConfig or (db.shown and location.enabled and (cat.location == activeLocation or isCompanion) and not conditionalChatHidden)
     if shouldShow then cat:Show() else cat:Hide() end
     if cat.kind == "spell" then
         if shouldShow then cat.spellIconFrame:Show() else cat.spellIconFrame:Hide() end
@@ -274,7 +276,12 @@ local function Trigger(locations, fromSequence)
     nextPaw = nextPaw == 1 and 2 or 1
     for _, location in ipairs(locations) do
         if not fromSequence then
-            activeLocation = location
+            if location == "spell" then
+                activeLocation = "spell"
+            else
+                companionLocation = location
+                if activeLocation ~= "spell" or GetTime() >= spellPlayback.visibleUntil then activeLocation = location end
+            end
             ApplyAll()
         end
         if db.locations[location].enabled then
@@ -760,7 +767,7 @@ Controller:SetScript("OnUpdate", function()
         spellPlayback.remaining = spellPlayback.remaining - 1
         spellPlayback.nextAt = now + db.spellSequence.interval
     elseif activeLocation == "spell" and now >= spellPlayback.visibleUntil then
-        activeLocation = "action"
+        activeLocation = companionLocation
         ApplyAll()
     end
     for _, cat in pairs(cats) do
