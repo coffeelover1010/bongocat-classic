@@ -46,6 +46,7 @@ local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20 }
 local SPELL_HOLD_DURATIONS = { 0.5, 1.0, 1.5, 2.0, 3.0, 5.0 }
+local SPELL_APPEAR_DELAY = 0.25
 local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
 local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
 local SPELL_ICON_DIMENSIONS = { 32, 40, 48, 64, 80, 96, 112, 128 }
@@ -507,11 +508,22 @@ local function TriggerSpell(spellID, icon)
             cat.spellIconFrame.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
         end
     end
-    Trigger({ "spell" })
+    -- Give the cat and icon a brief resting moment on screen before its first tap.
+    activeLocation = "spell"
+    ApplyAll()
+    for _, cat in pairs(cats) do
+        if cat.location == "spell" then
+            SetPose(cat, 0)
+            cat.lastHit = 0
+            cat.lastActivity = now
+            SetCatAlpha(cat, BaseAlpha(cat))
+            SetSpellIconAlpha(cat, IconBaseAlpha(cat))
+        end
+    end
     local steps = math.random(db.spellSequence.minimum, db.spellSequence.maximum)
-    spellPlayback.remaining = math.max(spellPlayback.remaining, steps - 1)
-    spellPlayback.nextAt = now + db.spellSequence.interval
-    spellPlayback.visibleUntil = now + steps * db.spellSequence.interval + db.spellSequence.hold
+    spellPlayback.remaining = steps
+    spellPlayback.nextAt = now + SPELL_APPEAR_DELAY
+    spellPlayback.visibleUntil = now + SPELL_APPEAR_DELAY + steps * db.spellSequence.interval + db.spellSequence.hold
 end
 
 local function TriggerAura(aura)
