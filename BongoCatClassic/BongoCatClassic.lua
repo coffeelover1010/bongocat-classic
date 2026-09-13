@@ -271,7 +271,9 @@ local function ApplyCat(cat)
     local size = SIZES[location.size]
     local textureSize = SIZE_NAMES[location.size]
     local namePlate = cat.kind == "nameplate" and TargetNamePlate() or nil
-    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or (cat.kind == "castbar" and CastingBar() or (namePlate or MainMenuBar)))
+    local hasNameplateTarget = cat.kind == "nameplate" and UnitExists("target")
+    local namePlateFrame = namePlate and (namePlate.UnitFrame or namePlate) or nil
+    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or (cat.kind == "castbar" and CastingBar() or (namePlateFrame or (hasNameplateTarget and TargetFrame) or MainMenuBar)))
     cat:SetSize(size.width, size.height)
     cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill-" .. textureSize .. ".tga")
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
@@ -315,8 +317,19 @@ local function ApplyCat(cat)
         cat:SetPoint("BOTTOM", cat.spellIconFrame, "TOP", location.catOffsetX or 0, location.catOffsetY or -10)
     elseif cat.kind == "nameplate" then
         if namePlate then
-            -- Rest on the target plate's top edge, leaving the name readable.
-            cat:SetPoint("BOTTOM", namePlate, "TOP", 0, -2)
+            -- Rest on the health bar, immediately to the left of its level badge.
+            local unitFrame = namePlateFrame
+            local level = unitFrame.levelText or unitFrame.level
+            local healthBar = unitFrame.healthBar or unitFrame
+            if level then
+                cat:SetPoint("BOTTOMRIGHT", level, "TOPLEFT", -3, -2)
+            else
+                cat:SetPoint("BOTTOMRIGHT", healthBar, "TOPRIGHT", -3, -2)
+            end
+        elseif hasNameplateTarget and TargetFrame then
+            -- World nameplates do not exist outside their draw distance. Keep the
+            -- cat visible on Blizzard's target frame until the plate becomes real.
+            cat:SetPoint("BOTTOM", TargetFrame, "TOP", 0, -2)
         else
             cat:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
         end
@@ -345,7 +358,7 @@ local function ApplyCat(cat)
     local activeHere = cat.location == activeLocation or isCompanion or spellPlaying or cat.kind == "nameplate" or (cat.kind == "castbar" and castbarTapping.active)
     local spellDisplayEnabled = cat.kind == "spell" and (location.catEnabled or location.iconEnabled)
     local spellShouldDisplay = previewingConfig or (db.shown and spellDisplayEnabled and activeHere)
-    local namePlateReady = cat.kind ~= "nameplate" or namePlate ~= nil
+    local namePlateReady = cat.kind ~= "nameplate" or hasNameplateTarget
     local shouldShow = previewingConfig or (db.shown and locationEnabled and activeHere and namePlateReady and not conditionalChatHidden)
     if shouldShow then cat:Show() else cat:Hide() end
     if cat.kind == "spell" then
