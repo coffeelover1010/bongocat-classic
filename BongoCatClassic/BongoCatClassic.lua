@@ -36,7 +36,7 @@ local LAYER_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCRE
 local FADE_DELAYS = { 1, 2, 5, 10 }
 local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 local SEQUENCE_STEPS = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
-local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20, 0.25, 0.33, 0.50 }
+local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20 }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -84,6 +84,7 @@ local function CopyDefaults()
     if BongoCatClassicDB.actionSequence.minimum == nil then BongoCatClassicDB.actionSequence.minimum = DEFAULTS.actionSequence.minimum end
     if BongoCatClassicDB.actionSequence.maximum == nil then BongoCatClassicDB.actionSequence.maximum = DEFAULTS.actionSequence.maximum end
     if BongoCatClassicDB.actionSequence.interval == nil then BongoCatClassicDB.actionSequence.interval = DEFAULTS.actionSequence.interval end
+    if BongoCatClassicDB.actionSequence.interval > 0.20 then BongoCatClassicDB.actionSequence.interval = 0.20 end
     BongoCatClassicDB.actionTriggers = BongoCatClassicDB.actionTriggers or {}
     for key, value in pairs(ACTION_TRIGGER_DEFAULTS) do
         if BongoCatClassicDB.actionTriggers[key] == nil then BongoCatClassicDB.actionTriggers[key] = value end
