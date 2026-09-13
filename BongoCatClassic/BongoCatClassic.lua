@@ -49,6 +49,18 @@ local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
 local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
 local SPELL_ICON_DIMENSIONS = { 32, 40, 48, 64, 80, 96, 112, 128 }
 local SPELL_BUBBLE_DIMENSIONS = { 160, 200, 240, 280, 320 }
+local SPEECH_BUBBLE_STYLES = {
+    oval = { label = "Oval tail", texture = "SpeechBubble-1.tga" },
+    round = { label = "Round tail", texture = "SpeechBubble-2.tga" },
+    cloud = { label = "Cloud", texture = "SpeechBubble-3.tga" },
+    softBurst = { label = "Soft burst", texture = "SpeechBubble-4.tga" },
+    box = { label = "Box tail", texture = "SpeechBubble-5.tga" },
+    ellipse = { label = "Ellipse tail", texture = "SpeechBubble-6.tga" },
+    comicBurst = { label = "Comic burst", texture = "SpeechBubble-7.tga" },
+    thought = { label = "Thought cloud", texture = "SpeechBubble-8.tga" },
+    jaggedBurst = { label = "Jagged burst", texture = "SpeechBubble-9.tga" },
+}
+local SPEECH_BUBBLE_STYLE_ORDER = { "oval", "round", "cloud", "softBurst", "box", "ellipse", "comicBurst", "thought", "jaggedBurst" }
 local SPELL_BORDER_STYLES = {
     quickslot = { label = "Quickslot", texture = "Interface\\Buttons\\UI-Quickslot2", padding = 5 },
     action = { label = "Action-bar gold", texture = "Interface\\Buttons\\UI-ActionButton-Border", padding = 4 },
@@ -71,7 +83,7 @@ local SIZES = {
     { width = 152, height = 76 },
 }
 local DEFAULTS = {
-    layoutVersion = 8,
+    layoutVersion = 9,
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
@@ -81,7 +93,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, iconBorderStyle = "quickslot", catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, iconBorderStyle = "quickslot", catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleStyle = "oval", bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -202,6 +214,13 @@ local function ApplySpellBorder(cat, location)
     end
 end
 
+local function ApplySpeechBubbleStyle(cat, location)
+    local style = SPEECH_BUBBLE_STYLES[location.bubbleStyle] or SPEECH_BUBBLE_STYLES.oval
+    cat.bubble:SetBackdrop(nil)
+    cat.bubble.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\" .. style.texture)
+    cat.bubble.art:Show()
+end
+
 local function SetPose(cat, pose)
     -- 2048x512 atlas: three 512px-wide poses; the cat occupies its middle half vertically.
     local left = pose * 0.25
@@ -260,6 +279,7 @@ local function ApplyCat(cat)
         cat.bubble:ClearAllPoints()
         cat.bubble:SetPoint("CENTER", UIParent, "CENTER", location.bubbleX or 0, location.bubbleY or -80)
         cat.bubble:SetAlpha(location.bubbleOpacity or 1.0)
+        ApplySpeechBubbleStyle(cat, location)
         cat.spellIconFrame:SetFrameStrata(location.strata or "TOOLTIP")
         cat.spellIconFrame:SetFrameLevel(10)
         cat.spellIconFrame:SetSize(location.iconWidth or 64, location.iconHeight or 64)
@@ -319,11 +339,8 @@ local function CreateCat(key, location, kind)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
     if kind == "spell" then
         cat.bubble = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-        -- Blizzard's chat-bubble edge includes the rounded cartoon outline and tail.
-        -- Keep it dark; making this white hid that silhouette against the bubble body.
-        cat.bubble:SetBackdrop({ bgFile = "Interface\\Tooltips\\ChatBubble-Background", edgeFile = "Interface\\Tooltips\\ChatBubble-Backdrop", tile = true, tileSize = 16, edgeSize = 24, insets = { left = 12, right = 12, top = 12, bottom = 20 } })
-        cat.bubble:SetBackdropColor(1.00, 0.97, 0.88, 0.96)
-        cat.bubble:SetBackdropBorderColor(0.075, 0.075, 0.09, 1)
+        cat.bubble.art = cat.bubble:CreateTexture(nil, "ARTWORK")
+        cat.bubble.art:SetAllPoints(cat.bubble)
         cat.bubble:SetMovable(true)
         cat.bubble:EnableMouse(false)
         cat.bubble:RegisterForDrag("LeftButton")
@@ -858,10 +875,12 @@ local function OpenConfig()
         Label(config, "Turn this on to put the spell icon and cat in a bubble.", 18, -84)
         Checkbox(config, "Speech bubble enabled", 18, -108, db.locations.spell.bubbleEnabled, function(value) db.locations.spell.bubbleEnabled = value; ApplyAll() end)
         CycleSpellIconButton(config, 18, -138, "bubbleOpacity", "Bubble opacity", SPELL_OPACITIES, function(value) return string.format("%d%%", value * 100) end)
-        Label(config, "Bubble size", 18, -176)
-        CycleSpellIconButton(config, 18, -198, "bubbleWidth", "Bubble width", SPELL_BUBBLE_DIMENSIONS, function(value) return value .. " px" end)
-        CycleSpellIconButton(config, 180, -198, "bubbleHeight", "Bubble height", SPELL_BUBBLE_DIMENSIONS, function(value) return value .. " px" end)
-        Label(config, "Drag the bubble itself to move everything inside it.", 18, -236)
+        CycleSpellIconButton(config, 18, -168, "bubbleStyle", "Bubble shape", SPEECH_BUBBLE_STYLE_ORDER, function(value) return SPEECH_BUBBLE_STYLES[value].label end)
+        Label(config, "Bubble size", 18, -206)
+        CycleSpellIconButton(config, 18, -228, "bubbleWidth", "Bubble width", SPELL_BUBBLE_DIMENSIONS, function(value) return value .. " px" end)
+        CycleSpellIconButton(config, 180, -228, "bubbleHeight", "Bubble height", SPELL_BUBBLE_DIMENSIONS, function(value) return value .. " px" end)
+        Label(config, "Drag the bubble itself to move everything inside it.", 18, -266)
+        Label(config, "Bubble art: designed by rawpixel.com - Magnific.com", 18, -288)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
