@@ -313,11 +313,18 @@ local function CycleFadeButton(parent, x, y, label, values, key, suffix)
 end
 
 local function OpenConfig()
-    if config then config:Show(); return end
+    if config then
+        config:Show()
+        for _, cat in pairs(cats) do cat:SetAlpha(1) end
+        return
+    end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     config:SetSize(420, 430)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
+    config:SetScript("OnShow", function()
+        for _, cat in pairs(cats) do cat:SetAlpha(1) end
+    end)
     config:SetMovable(true); config:EnableMouse(true); config:RegisterForDrag("LeftButton")
     config:SetScript("OnDragStart", config.StartMoving)
     config:SetScript("OnDragStop", config.StopMovingOrSizing)
@@ -402,7 +409,7 @@ Controller:SetScript("OnUpdate", function()
     local now = GetTime()
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
-        if db.fade.enabled and cat:IsShown() then
+        if db.fade.enabled and cat:IsShown() and not (config and config:IsShown()) then
             local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
             cat:SetAlpha(math.max(0, math.min(1, 1 - fadeProgress)))
             if (cat.kind == "action" or cat.kind == "chat") and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
