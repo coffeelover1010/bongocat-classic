@@ -8,7 +8,7 @@ A Bongo Cat animation for World of Warcraft Classic. The add-on uses the MIT-lic
    `World of Warcraft\_classic_\Interface\AddOns\BongoCatClassic` or
    `World of Warcraft\_classic_era_\Interface\AddOns\BongoCatClassic`
 2. Start the game and enable **BongoCat Classic** on the AddOns screen. If the client says it is out of date, enable **Load out of date AddOns** for this first test.
-3. Log in. The medium chat cat, action-bar cat, and small corner cats appear in their default positions. Open chat and type to animate the chat cat.
+3. Log in. The medium chat cat, action-bar cat, and small right-corner cat appear in their default positions. Open chat and type to animate the chat cat.
 
 ## Commands
 

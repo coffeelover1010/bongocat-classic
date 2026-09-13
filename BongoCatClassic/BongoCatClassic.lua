@@ -5,12 +5,14 @@ local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 
 local SIZE_NAMES = { "Small", "Medium", "Large" }
-local SIZES = { { width = 140, height = 70 }, { width = 220, height = 110 }, { width = 300, height = 150 } }
+-- Dimensions are UI units before the target frame's effective scale is applied.
+local SIZES = { { width = 72, height = 36 }, { width = 108, height = 54 }, { width = 150, height = 75 } }
 local DEFAULTS = {
+    layoutVersion = 2,
     shown = true,
     locations = {
-        chat = { enabled = true, size = 2, x = 0, y = -18 },
-        action = { enabled = true, size = 2, x = 0, y = 2 },
+        chat = { enabled = true, size = 2, x = 0, y = -30 },
+        action = { enabled = true, size = 2, x = 0, y = 0 },
         corners = { enabled = true, size = 1, x = 0, y = 0 },
     },
 }
@@ -21,15 +23,17 @@ end
 
 local function CopyDefaults()
     BongoCatClassicDB = BongoCatClassicDB or {}
+    local migrateLayout = BongoCatClassicDB.layoutVersion ~= DEFAULTS.layoutVersion
     if BongoCatClassicDB.shown == nil then BongoCatClassicDB.shown = DEFAULTS.shown end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
         BongoCatClassicDB.locations[name] = location
         for key, value in pairs(defaults) do
-            if location[key] == nil then location[key] = value end
+            if migrateLayout or location[key] == nil then location[key] = value end
         end
     end
+    BongoCatClassicDB.layoutVersion = DEFAULTS.layoutVersion
     db = BongoCatClassicDB
 end
 
@@ -42,15 +46,17 @@ end
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
+    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "action" and MainMenuBar or UIParent)
     cat:SetSize(size.width, size.height)
+    -- UIParent and Blizzard frames may use different scales. Match the target's scale so
+    -- a "medium" cat remains medium beside the frame it is attached to.
+    cat:SetScale(target:GetEffectiveScale() / UIParent:GetEffectiveScale())
     cat:ClearAllPoints()
     if cat.kind == "chat" then
         cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", location.x, location.y)
     elseif cat.kind == "action" then
         -- The cat's paws overlap the upper edge of the action bar.
         cat:SetPoint("BOTTOM", MainMenuBar, "TOP", location.x, location.y)
-    elseif cat.kind == "cornerLeft" then
-        cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 8 + location.x, 8 + location.y)
     else
         cat:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -8 + location.x, 8 + location.y)
     end
@@ -161,7 +167,7 @@ local function OpenConfig()
     Label(config, "Paws overlap their target. Drag this panel by its border.", 18, -46)
     LocationControls(config, "Chat cat — reacts to typing", "chat", -74)
     LocationControls(config, "Action-bar cat — reacts to player actions", "action", -178)
-    LocationControls(config, "Corner cats — react to player actions", "corners", -282)
+    LocationControls(config, "Corner cat — reacts to player actions", "corners", -282)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(110, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset defaults")
     reset:SetScript("OnClick", function() db.locations = {}; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
@@ -196,7 +202,6 @@ Controller:SetScript("OnEvent", function(_, event, unit)
         CopyDefaults()
         CreateCat("Chat", "chat", "chat")
         CreateCat("Action", "action", "action")
-        CreateCat("CornerLeft", "corners", "cornerLeft")
         CreateCat("CornerRight", "corners", "cornerRight")
         ApplyAll()
         if type(ChatEdit_OnTextChanged) == "function" then hooksecurefunc("ChatEdit_OnTextChanged", OnChatEdited) end
