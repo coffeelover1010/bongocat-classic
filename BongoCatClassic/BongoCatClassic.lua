@@ -2,10 +2,11 @@ local addonName = ...
 local Controller = CreateFrame("Frame", addonName .. "Controller")
 local db, config
 local actionTriggersExpanded = false
+local spellSettingsExpanded = false
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
-local spellSequence = { remaining = 0, nextAt = 0 }
+local spellPlayback = { remaining = 0, nextAt = 0, visibleUntil = 0 }
 local startedSpellCasts = {}
 local activeLocation = "chat"
 
@@ -57,6 +58,7 @@ local DEFAULTS = {
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
+    spellSequence = { minimum = 5, maximum = 5, interval = 0.12 },
     actionTriggers = ACTION_TRIGGER_DEFAULTS,
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -88,6 +90,11 @@ local function CopyDefaults()
     if BongoCatClassicDB.actionSequence.maximum == nil then BongoCatClassicDB.actionSequence.maximum = DEFAULTS.actionSequence.maximum end
     if BongoCatClassicDB.actionSequence.interval == nil then BongoCatClassicDB.actionSequence.interval = DEFAULTS.actionSequence.interval end
     if BongoCatClassicDB.actionSequence.interval > 0.20 then BongoCatClassicDB.actionSequence.interval = 0.20 end
+    BongoCatClassicDB.spellSequence = BongoCatClassicDB.spellSequence or {}
+    for key, value in pairs(DEFAULTS.spellSequence) do
+        if BongoCatClassicDB.spellSequence[key] == nil then BongoCatClassicDB.spellSequence[key] = value end
+    end
+    if BongoCatClassicDB.spellSequence.interval > 0.20 then BongoCatClassicDB.spellSequence.interval = 0.20 end
     BongoCatClassicDB.actionTriggers = BongoCatClassicDB.actionTriggers or {}
     for key, value in pairs(ACTION_TRIGGER_DEFAULTS) do
         if BongoCatClassicDB.actionTriggers[key] == nil then BongoCatClassicDB.actionTriggers[key] = value end
@@ -254,7 +261,7 @@ local function TriggerGlobal(condition)
     -- A short gate turns rapid input into an intentional rhythm instead of a flicker.
     if now - lastGlobalInput < 0.10 then return end
     lastGlobalInput = now
-    Trigger({ "action" })
+    if activeLocation == "spell" and now < spellPlayback.visibleUntil then Trigger({ "action" }, true) else Trigger({ "action" }) end
     local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
     globalSequence.remaining = math.max(globalSequence.remaining, steps - 1)
     globalSequence.nextAt = now + db.actionSequence.interval
@@ -271,9 +278,10 @@ local function TriggerSpell(spellID)
         end
     end
     Trigger({ "spell" })
-    local steps = math.random(db.actionSequence.minimum, db.actionSequence.maximum)
-    spellSequence.remaining = math.max(spellSequence.remaining, steps - 1)
-    spellSequence.nextAt = now + db.actionSequence.interval
+    local steps = math.random(db.spellSequence.minimum, db.spellSequence.maximum)
+    spellPlayback.remaining = math.max(spellPlayback.remaining, steps - 1)
+    spellPlayback.nextAt = now + db.spellSequence.interval
+    spellPlayback.visibleUntil = now + steps * db.spellSequence.interval + 0.25
 end
 
 local function OnChatEdited(editBox)
@@ -463,40 +471,42 @@ local function FadeModeButton(parent, x, y)
     end)
 end
 
-local function CycleSequenceButton(parent, x, y, key, label)
+local function CycleSequenceButton(parent, x, y, key, label, sequence)
+    sequence = sequence or db.actionSequence
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(150, 24)
     button:SetPoint("TOPLEFT", x, y)
     local function Refresh()
-        button:SetText(label .. ": " .. db.actionSequence[key])
+        button:SetText(label .. ": " .. sequence[key])
     end
     Refresh()
     button:SetScript("OnClick", function()
         for index, value in ipairs(SEQUENCE_STEPS) do
-            if value == db.actionSequence[key] then
-                db.actionSequence[key] = SEQUENCE_STEPS[index % #SEQUENCE_STEPS + 1]
+            if value == sequence[key] then
+                sequence[key] = SEQUENCE_STEPS[index % #SEQUENCE_STEPS + 1]
                 break
             end
         end
-        if db.actionSequence.minimum > db.actionSequence.maximum then
-            if key == "minimum" then db.actionSequence.maximum = db.actionSequence.minimum else db.actionSequence.minimum = db.actionSequence.maximum end
+        if sequence.minimum > sequence.maximum then
+            if key == "minimum" then sequence.maximum = sequence.minimum else sequence.minimum = sequence.maximum end
         end
         Refresh()
     end)
 end
 
-local function CycleSequenceIntervalButton(parent, x, y)
+local function CycleSequenceIntervalButton(parent, x, y, sequence)
+    sequence = sequence or db.actionSequence
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(150, 24)
     button:SetPoint("TOPLEFT", x, y)
     local function Refresh()
-        button:SetText(string.format("Tap interval: %.2fs", db.actionSequence.interval))
+        button:SetText(string.format("Tap interval: %.2fs", sequence.interval))
     end
     Refresh()
     button:SetScript("OnClick", function()
         for index, value in ipairs(SEQUENCE_INTERVALS) do
-            if value == db.actionSequence.interval then
-                db.actionSequence.interval = SEQUENCE_INTERVALS[index % #SEQUENCE_INTERVALS + 1]
+            if value == sequence.interval then
+                sequence.interval = SEQUENCE_INTERVALS[index % #SEQUENCE_INTERVALS + 1]
                 break
             end
         end
@@ -511,7 +521,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, actionTriggersExpanded and 360 or 550)
+    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 420 or 550))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -525,6 +535,31 @@ local function OpenConfig()
     config:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 11, top = 11, bottom = 11 } })
     local title = config:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -18); title:SetText("BongoCat Classic placements")
+    if spellSettingsExpanded then
+        title:SetText("BongoCat Classic spell cat")
+        local back = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        back:SetSize(190, 22); back:SetPoint("TOPLEFT", 18, -52); back:SetText("Back to placements")
+        back:SetScript("OnClick", function()
+            spellSettingsExpanded = false
+            config:Hide(); config = nil; OpenConfig()
+        end)
+        Label(config, "Spell cat — appears over each cast's spell icon", 18, -84)
+        Checkbox(config, "Enabled", 18, -106, db.locations.spell.enabled, function(value) db.locations.spell.enabled = value; ApplyAll() end)
+        CycleSizeButton(config, "spell", 150, -108)
+        ColourButton(config, "spell", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -138)
+        ColourButton(config, "spell", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -138)
+        CycleLayerButton(config, "spell", 18, -168)
+        Label(config, "Spell sequence", 18, -206)
+        CycleSequenceButton(config, 18, -228, "minimum", "Sequence min", db.spellSequence)
+        CycleSequenceButton(config, 180, -228, "maximum", "Sequence max", db.spellSequence)
+        CycleSequenceIntervalButton(config, 18, -258, db.spellSequence)
+        Label(config, "Uses the shared fade mode and timing.", 18, -296)
+        local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
+        close:SetScript("OnClick", function() config:Hide() end)
+        ApplyAll()
+        return
+    end
     if actionTriggersExpanded then
         local triggerToggle = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         triggerToggle:SetSize(190, 22); triggerToggle:SetPoint("TOPLEFT", 18, -52)
@@ -577,8 +612,11 @@ local function OpenConfig()
     ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -260)
     ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -260)
     CycleLayerButton(config, "action", 18, -290)
-    Checkbox(config, "Spell cat enabled", 220, -290, db.locations.spell.enabled, function(value)
-        db.locations.spell.enabled = value; ApplyAll()
+    local spellToggle = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+    spellToggle:SetSize(180, 22); spellToggle:SetPoint("TOPLEFT", 220, -290); spellToggle:SetText("Spell cat settings")
+    spellToggle:SetScript("OnClick", function()
+        spellSettingsExpanded = true
+        config:Hide(); config = nil; OpenConfig()
     end)
     local triggerToggle = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     triggerToggle:SetSize(190, 22); triggerToggle:SetPoint("TOPLEFT", 18, -318)
@@ -683,10 +721,13 @@ Controller:SetScript("OnUpdate", function()
         globalSequence.remaining = globalSequence.remaining - 1
         globalSequence.nextAt = now + db.actionSequence.interval
     end
-    if spellSequence.remaining > 0 and now >= spellSequence.nextAt then
+    if spellPlayback.remaining > 0 and now >= spellPlayback.nextAt then
         Trigger({ "spell" }, true)
-        spellSequence.remaining = spellSequence.remaining - 1
-        spellSequence.nextAt = now + db.actionSequence.interval
+        spellPlayback.remaining = spellPlayback.remaining - 1
+        spellPlayback.nextAt = now + db.spellSequence.interval
+    elseif activeLocation == "spell" and now >= spellPlayback.visibleUntil then
+        activeLocation = "action"
+        ApplyAll()
     end
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
