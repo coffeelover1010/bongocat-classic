@@ -8,19 +8,19 @@ A Bongo Cat animation for World of Warcraft Classic. The add-on uses the MIT-lic
    `World of Warcraft\_classic_\Interface\AddOns\BongoCatClassic` or
    `World of Warcraft\_classic_era_\Interface\AddOns\BongoCatClassic`
 2. Start the game and enable **BongoCat Classic** on the AddOns screen. If the client says it is out of date, enable **Load out of date AddOns** for this first test.
-3. Log in. The medium chat cat, action-bar cat, and small right-corner cat appear in their default positions. Open chat and type to animate the chat cat.
+3. Log in. The medium chat cat and action cat appear in their default positions. Open chat and type to animate the chat cat.
 
 ## Commands
 
 - `/bc` — show help.
-- `/bc config` — configure placements, visibility, size, and minor horizontal/vertical offsets.
+- `/bc config` — toggle either cat, cycle its size, and lock/unlock the action cat's drag position.
 - `/bc show`, `/bc hide`, `/bc toggle`
 - `/bc reset` — restore the placement defaults.
 - `/bc test` — play a short test animation.
 
 ## Test notes
 
-The chat cat listens only for changes to the active Blizzard chat box; it does not read or store what you type. Action-bar and corner cats respond to player movement, target changes, and completed spell casts, with a short pacing gate so rapid input remains readable. Please report the exact Classic client version and any error message if an animation does not fire.
+The chat cat is anchored within the lower 20% of the Blizzard chat window and listens only for changes to its active edit box; it does not read or store what you type. The draggable action cat responds to player movement, target changes, and completed spell casts, with a short pacing gate so rapid input remains readable. Please report the exact Classic client version and any error message if an animation does not fire.
 
 ## Credits
 

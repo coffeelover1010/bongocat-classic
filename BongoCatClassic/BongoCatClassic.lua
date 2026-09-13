@@ -8,12 +8,11 @@ local SIZE_NAMES = { "Small", "Medium", "Large" }
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = { { width = 72, height = 36 }, { width = 108, height = 54 }, { width = 150, height = 75 } }
 local DEFAULTS = {
-    layoutVersion = 2,
+    layoutVersion = 3,
     shown = true,
     locations = {
-        chat = { enabled = true, size = 2, x = 0, y = -30 },
-        action = { enabled = true, size = 2, x = 0, y = 0 },
-        corners = { enabled = true, size = 1, x = 0, y = 0 },
+        chat = { enabled = true, size = 2 },
+        action = { enabled = true, size = 2, locked = false, placed = false, x = 0, y = 0 },
     },
 }
 
@@ -46,19 +45,20 @@ end
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
-    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "action" and MainMenuBar or UIParent)
+    local target = cat.kind == "chat" and ChatFrame1 or MainMenuBar
     cat:SetSize(size.width, size.height)
     -- UIParent and Blizzard frames may use different scales. Match the target's scale so
     -- a "medium" cat remains medium beside the frame it is attached to.
     cat:SetScale(target:GetEffectiveScale() / UIParent:GetEffectiveScale())
     cat:ClearAllPoints()
     if cat.kind == "chat" then
-        cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", location.x, location.y)
-    elseif cat.kind == "action" then
-        -- The cat's paws overlap the upper edge of the action bar.
-        cat:SetPoint("BOTTOM", MainMenuBar, "TOP", location.x, location.y)
+        -- Keep the chat cat's attachment point inside the chat window's lower 20% band.
+        cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", math.floor(ChatFrame1:GetWidth() * 0.04), math.floor(ChatFrame1:GetHeight() * 0.20))
+    elseif location.placed then
+        cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
     else
-        cat:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -8 + location.x, 8 + location.y)
+        -- The cat's paws overlap the upper edge of the action bar.
+        cat:SetPoint("BOTTOM", MainMenuBar, "TOP", 0, 0)
     end
     if db.shown and location.enabled then cat:Show() else cat:Hide() end
 end
@@ -73,6 +73,21 @@ local function CreateCat(key, location, kind)
     cat.art = cat:CreateTexture(nil, "ARTWORK")
     cat.art:SetAllPoints(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
+    if kind == "action" then
+        cat:SetMovable(true)
+        cat:EnableMouse(true)
+        cat:RegisterForDrag("LeftButton")
+        cat:SetScript("OnDragStart", function(self)
+            if not db.locations.action.locked then self:StartMoving() end
+        end)
+        cat:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local scale = UIParent:GetEffectiveScale()
+            db.locations.action.x = math.floor(self:GetLeft() / scale + 0.5)
+            db.locations.action.y = math.floor(self:GetBottom() / scale + 0.5)
+            db.locations.action.placed = true
+        end)
+    end
     SetPose(cat, 0)
     cats[key] = cat
 end
@@ -94,7 +109,7 @@ local function TriggerGlobal()
     -- A short gate turns rapid input into an intentional rhythm instead of a flicker.
     if now - lastGlobalInput < 0.10 then return end
     lastGlobalInput = now
-    Trigger({ "action", "corners" })
+    Trigger({ "action" })
 end
 
 local function OnChatEdited(editBox)
@@ -108,54 +123,36 @@ local function Label(parent, text, x, y)
     return label
 end
 
-local function Slider(parent, x, y, text, minimum, maximum, step, changed)
-    local slider = CreateFrame("Slider", nil, parent, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", x, y)
-    slider:SetWidth(165)
-    slider:SetMinMaxValues(minimum, maximum)
-    slider:SetValueStep(step)
-    slider:SetObeyStepOnDrag(true)
-    slider.label = Label(parent, text, x, y + 13)
-    slider.value = Label(parent, "", x + 172, y + 13)
-    slider:SetScript("OnValueChanged", function(self, value)
-        value = math.floor(value / step + 0.5) * step
-        self.value:SetText(value)
-        if self.ready then changed(value) end
-    end)
-    return slider
+local function Checkbox(parent, text, x, y, checked, changed)
+    local box = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    box:SetPoint("TOPLEFT", x, y)
+    box.text = box:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    box.text:SetPoint("LEFT", box, "RIGHT", 2, 0)
+    box.text:SetText(text)
+    box:SetChecked(checked)
+    box:SetScript("OnClick", function(self) changed(self:GetChecked() and true or false) end)
 end
 
-local function LocationControls(parent, title, name, y)
-    local location = db.locations[name]
-    Label(parent, title, 18, y)
-    local enabled = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    enabled:SetPoint("TOPLEFT", 18, y - 22)
-    enabled.text = enabled:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    enabled.text:SetPoint("LEFT", enabled, "RIGHT", 2, 0)
-    enabled.text:SetText("Enabled")
-    enabled:SetChecked(location.enabled)
-    enabled:SetScript("OnClick", function(self) location.enabled = self:GetChecked() and true or false; ApplyAll() end)
-
-    local size
-    size = Slider(parent, 170, y - 24, "Size", 1, 3, 1, function(value)
-        location.size = value; size.value:SetText(SIZE_NAMES[value]); ApplyAll()
+local function CycleSizeButton(parent, name, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(165, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText(name .. " size: " .. SIZE_NAMES[db.locations[name].size])
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        local location = db.locations[name]
+        location.size = location.size % 3 + 1
+        Refresh()
+        ApplyAll()
     end)
-    size.ready = false; size:SetValue(location.size); size.value:SetText(SIZE_NAMES[location.size]); size.ready = true
-
-    local offsetX = Slider(parent, 18, y - 58, "Horizontal offset", -100, 100, 1, function(value)
-        location.x = value; ApplyAll()
-    end)
-    offsetX.ready = false; offsetX:SetValue(location.x); offsetX.ready = true
-    local offsetY = Slider(parent, 230, y - 58, "Vertical offset", -100, 100, 1, function(value)
-        location.y = value; ApplyAll()
-    end)
-    offsetY.ready = false; offsetY:SetValue(location.y); offsetY.ready = true
 end
 
 local function OpenConfig()
     if config then config:Show(); return end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(450, 390)
+    config:SetSize(420, 260)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetMovable(true); config:EnableMouse(true); config:RegisterForDrag("LeftButton")
@@ -164,13 +161,24 @@ local function OpenConfig()
     config:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 11, top = 11, bottom = 11 } })
     local title = config:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -18); title:SetText("BongoCat Classic placements")
-    Label(config, "Paws overlap their target. Drag this panel by its border.", 18, -46)
-    LocationControls(config, "Chat cat — reacts to typing", "chat", -74)
-    LocationControls(config, "Action-bar cat — reacts to player actions", "action", -178)
-    LocationControls(config, "Corner cat — reacts to player actions", "corners", -282)
+    Label(config, "The chat cat stays inside the chat window's lower 20% band.", 18, -46)
+    Label(config, "Chat cat — reacts to typing", 18, -78)
+    Checkbox(config, "Enabled", 18, -100, db.locations.chat.enabled, function(value)
+        db.locations.chat.enabled = value; ApplyAll()
+    end)
+    CycleSizeButton(config, "chat", 190, -102)
+    Label(config, "Action cat — reacts to player actions", 18, -138)
+    Checkbox(config, "Enabled", 18, -160, db.locations.action.enabled, function(value)
+        db.locations.action.enabled = value; ApplyAll()
+    end)
+    Checkbox(config, "Lock position", 110, -160, db.locations.action.locked, function(value)
+        db.locations.action.locked = value
+    end)
+    CycleSizeButton(config, "action", 238, -162)
+    Label(config, "Drag the action cat directly; lock it here when positioned.", 18, -196)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
-    reset:SetSize(110, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset defaults")
-    reset:SetScript("OnClick", function() db.locations = {}; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
+    reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
+    reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
     local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
     close:SetScript("OnClick", function() config:Hide() end)
@@ -188,7 +196,7 @@ SlashCmdList.BONGOCATCLASSIC = function(message)
     elseif command == "hide" then db.shown = false; ApplyAll(); Print("hidden.")
     elseif command == "toggle" then db.shown = not db.shown; ApplyAll(); Print(db.shown and "shown." or "hidden.")
     elseif command == "reset" then db.locations = {}; CopyDefaults(); ApplyAll(); Print("placements reset.")
-    elseif command == "test" then Trigger({ "chat", "action", "corners" }); Print("bop!")
+    elseif command == "test" then Trigger({ "chat", "action" }); Print("bop!")
     elseif command == "credits" then Print("Kitgore icon-font artwork used under MIT; see THIRD_PARTY_NOTICES.md.")
     else Help() end
 end
@@ -202,7 +210,6 @@ Controller:SetScript("OnEvent", function(_, event, unit)
         CopyDefaults()
         CreateCat("Chat", "chat", "chat")
         CreateCat("Action", "action", "action")
-        CreateCat("CornerRight", "corners", "cornerRight")
         ApplyAll()
         if type(ChatEdit_OnTextChanged) == "function" then hooksecurefunc("ChatEdit_OnTextChanged", OnChatEdited) end
         Print("loaded. Use /bc config to place and size cats.")
