@@ -16,6 +16,15 @@ A small animated cat that taps along while you play World of Warcraft Classic.
 - `/bc reset` — restore the placement defaults.
 - `/bc test` — play a short test animation.
 
+## Screenshots
+
+<p>
+  <img src="docs/images/player-frame-cat.png" alt="Bongo Cat resting above the player frame" width="420">
+  <img src="docs/images/chat-commands.png" alt="Bongo Cat and the in-game command help" width="420">
+</p>
+
+<img src="docs/images/spell-cat-speech-bubble.png" alt="Spell cat with a speech bubble and spell icon" width="720">
+
 ## Test notes
 
 The cats tap when you type, use actions, cast spells, fight, move, or change targets. The most recently active cat normally gets the spotlight, so your screen stays uncluttered. Cats fade away after a short pause by default, and you can lock them so they do not get in the way of clicking.
