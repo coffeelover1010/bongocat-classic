@@ -20,8 +20,17 @@ local OUTLINE_COLOURS = {
     slate = { label = "Slate", r = 0.16, g = 0.19, b = 0.23, a = 1 },
 }
 local OUTLINE_ORDER = { "ink", "black", "brown", "slate" }
-local LAYER_NAMES = { MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog", TOOLTIP = "On top" }
-local LAYER_ORDER = { "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }
+local LAYER_NAMES = {
+    BACKGROUND = "Background",
+    LOW = "Low",
+    MEDIUM = "Medium",
+    HIGH = "High",
+    DIALOG = "Dialog",
+    FULLSCREEN = "Fullscreen",
+    FULLSCREEN_DIALOG = "Fullscreen dialog",
+    TOOLTIP = "On top",
+}
+local LAYER_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 local FADE_DELAYS = { 1, 2, 5, 10 }
 local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
 local SEQUENCE_STEPS = { 1, 3, 5, 7, 9 }
