@@ -3,6 +3,7 @@ local Controller = CreateFrame("Frame", addonName .. "Controller")
 local db, config
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
+local globalSequence = { remaining = 0, nextAt = 0 }
 
 local SIZE_NAMES = { "XS", "S", "M", "L", "XL" }
 local FILL_COLOURS = {
@@ -23,6 +24,7 @@ local LAYER_NAMES = { MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog", TOOLT
 local LAYER_ORDER = { "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }
 local FADE_DELAYS = { 1, 2, 5, 10 }
 local FADE_DURATIONS = { 0.25, 0.5, 1.0, 2.0 }
+local SEQUENCE_STEPS = { 1, 3, 5, 7, 9 }
 -- Dimensions are UI units before the target frame's effective scale is applied.
 local SIZES = {
     { width = 42, height = 21 },
@@ -35,6 +37,7 @@ local DEFAULTS = {
     layoutVersion = 7,
     shown = true,
     fade = { enabled = true, delay = 5, duration = 0.5 },
+    actionSequence = { steps = 5 },
     locations = {
         chat = { enabled = true, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -54,6 +57,8 @@ local function CopyDefaults()
     for key, value in pairs(DEFAULTS.fade) do
         if BongoCatClassicDB.fade[key] == nil then BongoCatClassicDB.fade[key] = value end
     end
+    BongoCatClassicDB.actionSequence = BongoCatClassicDB.actionSequence or {}
+    if BongoCatClassicDB.actionSequence.steps == nil then BongoCatClassicDB.actionSequence.steps = DEFAULTS.actionSequence.steps end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
@@ -181,6 +186,8 @@ local function TriggerGlobal()
     if now - lastGlobalInput < 0.10 then return end
     lastGlobalInput = now
     Trigger({ "action" })
+    globalSequence.remaining = math.max(globalSequence.remaining, db.actionSequence.steps - 1)
+    globalSequence.nextAt = now + 0.12
 end
 
 local function OnChatEdited(editBox)
@@ -339,6 +346,22 @@ local function CycleFadeButton(parent, x, y, label, values, key, suffix)
     end)
 end
 
+local function CycleSequenceButton(parent, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(170, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText("Action sequence: " .. db.actionSequence.steps .. " taps")
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        for index, value in ipairs(SEQUENCE_STEPS) do
+            if value == db.actionSequence.steps then db.actionSequence.steps = SEQUENCE_STEPS[index % #SEQUENCE_STEPS + 1]; break end
+        end
+        Refresh()
+    end)
+end
+
 local function OpenConfig()
     if config then
         config:Show()
@@ -346,7 +369,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 430)
+    config:SetSize(420, 460)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -388,6 +411,7 @@ local function OpenConfig()
     end)
     CycleFadeButton(config, 18, -358, "Fade delay", FADE_DELAYS, "delay", "s")
     CycleFadeButton(config, 190, -358, "Fade time", FADE_DURATIONS, "duration", "s")
+    CycleSequenceButton(config, 18, -388)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
@@ -408,7 +432,7 @@ SlashCmdList.BONGOCATCLASSIC = function(message)
     elseif command == "hide" then db.shown = false; ApplyAll(); Print("hidden.")
     elseif command == "toggle" then db.shown = not db.shown; ApplyAll(); Print(db.shown and "shown." or "hidden.")
     elseif command == "reset" then db.locations = {}; CopyDefaults(); ApplyAll(); Print("placements reset.")
-    elseif command == "test" then Trigger({ "chat", "action" }); Print("bop!")
+    elseif command == "test" then Trigger({ "chat" }); TriggerGlobal(); Print("bop!")
     elseif command == "credits" then Print("Kitgore icon-font artwork used under MIT; see THIRD_PARTY_NOTICES.md.")
     else Help() end
 end
@@ -443,6 +467,11 @@ end)
 
 Controller:SetScript("OnUpdate", function()
     local now = GetTime()
+    if globalSequence.remaining > 0 and now >= globalSequence.nextAt then
+        Trigger({ "action" })
+        globalSequence.remaining = globalSequence.remaining - 1
+        globalSequence.nextAt = now + 0.12
+    end
     for _, cat in pairs(cats) do
         if cat.lastHit > 0 and now - cat.lastHit > 0.18 then SetPose(cat, 0); cat.lastHit = 0 end
         if db.fade.enabled and cat:IsShown() and not (config and config:IsShown()) then
