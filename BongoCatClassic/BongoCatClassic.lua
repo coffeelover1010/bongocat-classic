@@ -63,7 +63,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, size = 2, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, size = 5, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -108,6 +108,10 @@ local function CopyDefaults()
         end
         if migrateSizes and not migrateLayout and location.size then location.size = math.min(location.size + 1, #SIZES) end
     end
+    if (BongoCatClassicDB.spellCatPresentationVersion or 0) < 2 then
+        BongoCatClassicDB.locations.spell.size = 5
+        BongoCatClassicDB.spellCatPresentationVersion = 2
+    end
     BongoCatClassicDB.layoutVersion = DEFAULTS.layoutVersion
     db = BongoCatClassicDB
 end
@@ -143,12 +147,12 @@ local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
     local textureSize = SIZE_NAMES[location.size]
-    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and CastingBar() or MainMenuBar)
+    local target = cat.kind == "chat" and ChatFrame1 or (cat.kind == "spell" and UIParent or MainMenuBar)
     cat:SetSize(size.width, size.height)
     cat.fill:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassicFill-" .. textureSize .. ".tga")
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic-" .. textureSize .. ".tga")
     cat:SetFrameStrata(location.strata or "TOOLTIP")
-    cat:SetFrameLevel(cat.kind == "spell" and target:GetFrameLevel() + 10 or 100)
+    cat:SetFrameLevel(cat.kind == "spell" and 20 or 100)
     cat:SetAlpha(1)
     local fill = location.fillColour or FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
@@ -163,9 +167,10 @@ local function ApplyCat(cat)
         -- Anchor to the chat frame after clamping to its padded drag area.
         cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", location.x, location.y)
     elseif cat.kind == "spell" then
-        local icon = target.Icon or target.icon or target
-        -- Keep the paws and bongo directly over the spell image at the start of the cast bar.
-        cat:SetPoint("CENTER", icon, "CENTER", 0, 0)
+        cat.spellIconFrame:SetFrameStrata(location.strata or "TOOLTIP")
+        cat.spellIconFrame:SetFrameLevel(10)
+        -- Present a WeakAuras-style spell icon slightly below screen centre; the cat's paws overlap it.
+        cat:SetPoint("BOTTOM", cat.spellIconFrame, "TOP", 0, -10)
     elseif location.placed then
         cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
     else
@@ -175,7 +180,11 @@ local function ApplyCat(cat)
     if cat.kind == "chat" or cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
     local conditionalChatHidden = cat.location == "chat" and location.onlyWhileEditing and not ChatInputOpen()
     local previewingConfig = config and config:IsShown()
-    if previewingConfig or (db.shown and location.enabled and cat.location == activeLocation and not conditionalChatHidden) then cat:Show() else cat:Hide() end
+    local shouldShow = previewingConfig or (db.shown and location.enabled and cat.location == activeLocation and not conditionalChatHidden)
+    if shouldShow then cat:Show() else cat:Hide() end
+    if cat.kind == "spell" then
+        if shouldShow then cat.spellIconFrame:Show() else cat.spellIconFrame:Hide() end
+    end
 end
 
 local function ApplyAll()
@@ -192,10 +201,12 @@ local function CreateCat(key, location, kind)
     cat.art:SetAllPoints(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
     if kind == "spell" then
-        cat.spellIcon = cat:CreateTexture(nil, "BACKGROUND", nil, -1)
-        cat.spellIcon:SetPoint("CENTER", cat, "CENTER")
-        cat.spellIcon:SetSize(28, 28)
-        cat.spellIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+        cat.spellIconFrame = CreateFrame("Frame", nil, UIParent)
+        cat.spellIconFrame:SetSize(64, 64)
+        cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -80)
+        cat.spellIconFrame.icon = cat.spellIconFrame:CreateTexture(nil, "ARTWORK")
+        cat.spellIconFrame.icon:SetAllPoints(cat.spellIconFrame)
+        cat.spellIconFrame.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     end
     if kind == "chat" or kind == "action" then
         cat:SetMovable(true)
@@ -272,9 +283,8 @@ local function TriggerSpell(spellID)
     local now = GetTime()
     local texture = spellID and GetSpellTexture(spellID)
     for _, cat in pairs(cats) do
-        if cat.location == "spell" and cat.spellIcon then
-            cat.spellIcon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
-            cat.spellIcon:SetSize(SIZES[db.locations.spell.size].height, SIZES[db.locations.spell.size].height)
+        if cat.location == "spell" and cat.spellIconFrame then
+            cat.spellIconFrame.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
         end
     end
     Trigger({ "spell" })
