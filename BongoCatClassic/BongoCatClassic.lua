@@ -46,7 +46,7 @@ local SEQUENCE_INTERVALS = { 0.08, 0.12, 0.16, 0.20 }
 local SPELL_HOLD_DURATIONS = { 0.5, 1.0, 1.5, 2.0, 3.0, 5.0 }
 local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
 local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
-local SPELL_ICON_SIZES = { 40, 48, 64, 80, 96 }
+local SPELL_ICON_DIMENSIONS = { 32, 40, 48, 64, 80, 96, 112, 128 }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -73,7 +73,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconSize = 64, iconZoom = 0, iconBorder = true, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -122,6 +122,11 @@ local function CopyDefaults()
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
         BongoCatClassicDB.locations[name] = location
+        if name == "spell" and location.iconSize then
+            if location.iconWidth == nil then location.iconWidth = location.iconSize end
+            if location.iconHeight == nil then location.iconHeight = location.iconSize end
+            location.iconSize = nil
+        end
         for key, value in pairs(defaults) do
             if migrateLayout or location[key] == nil then location[key] = value end
         end
@@ -198,7 +203,7 @@ local function ApplyCat(cat)
     elseif cat.kind == "spell" then
         cat.spellIconFrame:SetFrameStrata(location.strata or "TOOLTIP")
         cat.spellIconFrame:SetFrameLevel(10)
-        cat.spellIconFrame:SetSize(location.iconSize or 64, location.iconSize or 64)
+        cat.spellIconFrame:SetSize(location.iconWidth or 64, location.iconHeight or 64)
         cat.spellIconFrame:ClearAllPoints()
         cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", location.x or 0, location.y or -80)
         local zoom = location.iconZoom or 0
@@ -768,7 +773,8 @@ local function OpenConfig()
         Label(config, "Spell icon", 18, -206)
         CycleSpellIconButton(config, 18, -228, "iconZoom", "Icon zoom", SPELL_ICON_ZOOMS, function(value) return string.format("%d%%", value * 100) end)
         SpellBorderButton(config, 180, -228)
-        CycleSpellIconButton(config, 18, -258, "iconSize", "Icon size", SPELL_ICON_SIZES, function(value) return value .. " px" end)
+        CycleSpellIconButton(config, 18, -258, "iconWidth", "Icon width", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
+        CycleSpellIconButton(config, 180, -258, "iconHeight", "Icon height", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
         Label(config, "Spell sequence", 18, -296)
         CycleSequenceButton(config, 18, -318, "minimum", "Sequence min", db.spellSequence)
         CycleSequenceButton(config, 180, -318, "maximum", "Sequence max", db.spellSequence)

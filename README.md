@@ -13,7 +13,7 @@ A Bongo Cat animation for World of Warcraft Classic. It includes cats for chat, 
 ## Commands
 
 - `/bc` — show help.
-- `/bc config` — use the short explanations to set up chat, action, and spell cats. Trigger lists are separate compact views; spell triggers include cast bars, channels, instant spells, buffs, and debuffs. Spell settings also offer opacity, XXL/XXXL sizes, post-sequence visibility time, icon zoom, icon size, and a border toggle; drag the cat and icon to position them.
+- `/bc config` — use the short explanations to set up chat, action, and spell cats. Trigger lists are separate compact views; spell triggers include cast bars, channels, instant spells, buffs, and debuffs. Spell settings also offer opacity, XXL/XXXL sizes, post-sequence visibility time, icon zoom, independent icon width and height, and a border toggle; drag the cat and icon to position them.
 - `/bc show`, `/bc hide`, `/bc toggle`
 - `/bc reset` — restore the placement defaults.
 - `/bc test` — play a short test animation.
