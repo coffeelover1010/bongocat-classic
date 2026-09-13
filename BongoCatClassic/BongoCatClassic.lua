@@ -4,6 +4,7 @@ local db, config
 local actionTriggersExpanded = false
 local spellSettingsExpanded = false
 local spellTriggersExpanded = false
+local bubbleSettingsExpanded = false
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
@@ -47,6 +48,7 @@ local SPELL_HOLD_DURATIONS = { 0.5, 1.0, 1.5, 2.0, 3.0, 5.0 }
 local SPELL_OPACITIES = { 1.0, 0.80, 0.60, 0.40, 0.20 }
 local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
 local SPELL_ICON_DIMENSIONS = { 32, 40, 48, 64, 80, 96, 112, 128 }
+local SPELL_BUBBLE_DIMENSIONS = { 160, 200, 240, 280, 320 }
 local ACTION_TRIGGER_DEFAULTS = {
     actionBar = true, castStart = true, castSuccess = true, channelStart = true,
     combat = true, enterCombat = true, movement = true, turning = true,
@@ -73,7 +75,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, catOpacity = 1.0, iconOpacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, catOpacity = 1.0, iconOpacity = 1.0, bubbleEnabled = false, bubbleX = 0, bubbleY = -80, bubbleWidth = 240, bubbleHeight = 200, bubbleOpacity = 1.0, bubbleIconX = 0, bubbleIconY = -20, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -219,11 +221,21 @@ local function ApplyCat(cat)
         -- Anchor to the chat frame after clamping to its padded drag area.
         cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", location.x, location.y)
     elseif cat.kind == "spell" then
+        cat.bubble:SetFrameStrata(location.strata or "TOOLTIP")
+        cat.bubble:SetFrameLevel(5)
+        cat.bubble:SetSize(location.bubbleWidth or 240, location.bubbleHeight or 200)
+        cat.bubble:ClearAllPoints()
+        cat.bubble:SetPoint("CENTER", UIParent, "CENTER", location.bubbleX or 0, location.bubbleY or -80)
+        cat.bubble:SetAlpha(location.bubbleOpacity or 1.0)
         cat.spellIconFrame:SetFrameStrata(location.strata or "TOOLTIP")
         cat.spellIconFrame:SetFrameLevel(10)
         cat.spellIconFrame:SetSize(location.iconWidth or 64, location.iconHeight or 64)
         cat.spellIconFrame:ClearAllPoints()
-        cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", location.x or 0, location.y or -80)
+        if location.bubbleEnabled then
+            cat.spellIconFrame:SetPoint("CENTER", cat.bubble, "CENTER", location.bubbleIconX or 0, location.bubbleIconY or -20)
+        else
+            cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", location.x or 0, location.y or -80)
+        end
         local zoom = location.iconZoom or 0
         cat.spellIconFrame.icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
         cat.spellIconFrame.border:SetShown(location.iconBorder ~= false)
@@ -238,6 +250,7 @@ local function ApplyCat(cat)
     if cat.kind == "spell" then
         cat:EnableMouse(config and config:IsShown())
         cat.spellIconFrame:EnableMouse(config and config:IsShown())
+        cat.bubble:EnableMouse(config and config:IsShown() and location.bubbleEnabled)
     elseif cat.kind == "chat" or cat.kind == "action" then
         cat:EnableMouse(db.shown and location.enabled and not location.locked)
     end
@@ -254,6 +267,7 @@ local function ApplyCat(cat)
     if shouldShow then cat:Show() else cat:Hide() end
     if cat.kind == "spell" then
         if spellShouldDisplay and (previewingConfig or location.iconEnabled) then cat.spellIconFrame:Show() else cat.spellIconFrame:Hide() end
+        if spellShouldDisplay and location.bubbleEnabled then cat.bubble:Show() else cat.bubble:Hide() end
     end
 end
 
@@ -271,6 +285,26 @@ local function CreateCat(key, location, kind)
     cat.art:SetAllPoints(cat)
     cat.art:SetTexture("Interface\\AddOns\\BongoCatClassic\\Art\\BongoCatClassic.tga")
     if kind == "spell" then
+        cat.bubble = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        cat.bubble:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\ChatBubble-Backdrop", tile = true, tileSize = 16, edgeSize = 16, insets = { left = 8, right = 8, top = 8, bottom = 8 } })
+        cat.bubble:SetBackdropColor(1, 1, 1, 0.92)
+        cat.bubble:SetBackdropBorderColor(1, 1, 1, 1)
+        cat.bubble:SetMovable(true)
+        cat.bubble:EnableMouse(false)
+        cat.bubble:RegisterForDrag("LeftButton")
+        cat.bubble:SetScript("OnDragStart", function(self)
+            if config and config:IsShown() then self:StartMoving() end
+        end)
+        cat.bubble:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local scale = UIParent:GetEffectiveScale()
+            local x, y = self:GetCenter()
+            local parentX, parentY = UIParent:GetCenter()
+            local location = db.locations.spell
+            location.bubbleX = math.floor((x - parentX) / scale + 0.5)
+            location.bubbleY = math.floor((y - parentY) / scale + 0.5)
+            ApplyCat(cat)
+        end)
         cat.spellIconFrame = CreateFrame("Frame", nil, UIParent)
         cat.spellIconFrame:SetSize(64, 64)
         cat.spellIconFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -80)
@@ -294,8 +328,14 @@ local function CreateCat(key, location, kind)
             local x, y = self:GetCenter()
             local parentX, parentY = UIParent:GetCenter()
             local location = db.locations.spell
-            location.x = math.floor((x - parentX) / scale + 0.5)
-            location.y = math.floor((y - parentY) / scale + 0.5)
+            if location.bubbleEnabled then
+                local bubbleX, bubbleY = cat.bubble:GetCenter()
+                location.bubbleIconX = math.floor((x - bubbleX) / scale + 0.5)
+                location.bubbleIconY = math.floor((y - bubbleY) / scale + 0.5)
+            else
+                location.x = math.floor((x - parentX) / scale + 0.5)
+                location.y = math.floor((y - parentY) / scale + 0.5)
+            end
             ApplyCat(cat)
         end)
     end
@@ -750,7 +790,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (spellSettingsExpanded and 540 or 550))
+    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (bubbleSettingsExpanded and 400 or (spellSettingsExpanded and 540 or 550)))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -764,6 +804,28 @@ local function OpenConfig()
     config:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 11, top = 11, bottom = 11 } })
     local title = config:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -18); title:SetText("BongoCat Classic — quick setup")
+    if bubbleSettingsExpanded then
+        title:SetText("Spell speech bubble")
+        local back = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        back:SetSize(190, 22); back:SetPoint("TOPLEFT", 18, -52); back:SetText("Back to spell settings")
+        back:SetScript("OnClick", function()
+            bubbleSettingsExpanded = false
+            spellSettingsExpanded = true
+            config:Hide(); config = nil; OpenConfig()
+        end)
+        Label(config, "Turn this on to put the spell icon and cat in a bubble.", 18, -84)
+        Checkbox(config, "Speech bubble enabled", 18, -108, db.locations.spell.bubbleEnabled, function(value) db.locations.spell.bubbleEnabled = value; ApplyAll() end)
+        CycleSpellIconButton(config, 18, -138, "bubbleOpacity", "Bubble opacity", SPELL_OPACITIES, function(value) return string.format("%d%%", value * 100) end)
+        Label(config, "Bubble size", 18, -176)
+        CycleSpellIconButton(config, 18, -198, "bubbleWidth", "Bubble width", SPELL_BUBBLE_DIMENSIONS, function(value) return value .. " px" end)
+        CycleSpellIconButton(config, 180, -198, "bubbleHeight", "Bubble height", SPELL_BUBBLE_DIMENSIONS, function(value) return value .. " px" end)
+        Label(config, "Drag the bubble itself to move everything inside it.", 18, -236)
+        local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
+        close:SetScript("OnClick", function() config:Hide() end)
+        ApplyAll()
+        return
+    end
     if spellTriggersExpanded then
         title:SetText("Spell cat triggers")
         local back = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
@@ -821,6 +883,13 @@ local function OpenConfig()
             config:Hide(); config = nil; OpenConfig()
         end)
         Label(config, "Pick casts, buffs, and debuffs in the trigger list.", 18, -446)
+        local bubbleSetup = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+        bubbleSetup:SetSize(190, 24); bubbleSetup:SetPoint("TOPLEFT", 210, -416); bubbleSetup:SetText("Speech bubble setup")
+        bubbleSetup:SetScript("OnClick", function()
+            spellSettingsExpanded = false
+            bubbleSettingsExpanded = true
+            config:Hide(); config = nil; OpenConfig()
+        end)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
