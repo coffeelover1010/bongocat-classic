@@ -2,13 +2,11 @@
 
 A small animated cat that taps along while you play World of Warcraft Classic.
 
-## Install for testing
+## Install
 
-1. Copy the `BongoCatClassic` folder into your Classic client's AddOns directory, for example:
-   `World of Warcraft\_classic_\Interface\AddOns\BongoCatClassic` or
-   `World of Warcraft\_classic_era_\Interface\AddOns\BongoCatClassic`
-2. Start the game and enable **BongoCat Classic** on the AddOns screen. If the client says it is out of date, enable **Load out of date AddOns** for this first test.
-3. Log in. The medium chat cat and action cat appear in their default positions. Open chat and type to animate the chat cat.
+1. Copy the `BongoCatClassic` folder into your Classic `Interface\AddOns` folder.
+2. At the character-select screen, enable **BongoCat Classic**. If WoW says it is out of date, tick **Load out of date AddOns**.
+3. Log in and type `/bc config` to set up your cats.
 
 ## Commands
 
