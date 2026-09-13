@@ -73,7 +73,7 @@ local DEFAULTS = {
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
         action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
-        spell = { enabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, opacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        spell = { enabled = true, catEnabled = true, iconEnabled = true, size = 7, x = 0, y = -80, catOffsetX = 0, catOffsetY = -10, iconWidth = 64, iconHeight = 64, iconZoom = 0, iconBorder = true, catOpacity = 1.0, iconOpacity = 1.0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -122,6 +122,15 @@ local function CopyDefaults()
     for name, defaults in pairs(DEFAULTS.locations) do
         local location = BongoCatClassicDB.locations[name] or {}
         BongoCatClassicDB.locations[name] = location
+        if name == "spell" then
+            if location.catEnabled == nil and location.enabled ~= nil then location.catEnabled = location.enabled end
+            if location.iconEnabled == nil and location.enabled ~= nil then location.iconEnabled = location.enabled end
+            if location.opacity ~= nil then
+                if location.catOpacity == nil then location.catOpacity = location.opacity end
+                if location.iconOpacity == nil then location.iconOpacity = location.opacity end
+                location.opacity = nil
+            end
+        end
         if name == "spell" and location.iconSize then
             if location.iconWidth == nil then location.iconWidth = location.iconSize end
             if location.iconHeight == nil then location.iconHeight = location.iconSize end
@@ -141,12 +150,20 @@ local function CopyDefaults()
 end
 
 local function BaseAlpha(cat)
-    if cat.kind == "spell" then return db.locations.spell.opacity or 1.0 end
+    if cat.kind == "spell" then return db.locations.spell.catOpacity or db.locations.spell.opacity or 1.0 end
+    return 1.0
+end
+
+local function IconBaseAlpha(cat)
+    if cat.kind == "spell" then return db.locations.spell.iconOpacity or db.locations.spell.opacity or 1.0 end
     return 1.0
 end
 
 local function SetCatAlpha(cat, alpha)
     cat:SetAlpha(alpha)
+end
+
+local function SetSpellIconAlpha(cat, alpha)
     if cat.kind == "spell" and cat.spellIconFrame then cat.spellIconFrame:SetAlpha(alpha) end
 end
 
@@ -188,6 +205,7 @@ local function ApplyCat(cat)
     cat:SetFrameStrata(location.strata or "TOOLTIP")
     cat:SetFrameLevel(cat.kind == "spell" and 20 or 100)
     SetCatAlpha(cat, BaseAlpha(cat))
+    if cat.kind == "spell" then SetSpellIconAlpha(cat, IconBaseAlpha(cat)) end
     local fill = location.fillColour or FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
     local outline = location.outlineColour or OUTLINE_COLOURS[location.outline] or OUTLINE_COLOURS.ink
@@ -227,10 +245,15 @@ local function ApplyCat(cat)
     local previewingConfig = config and config:IsShown()
     local isCompanion = activeLocation == "spell" and cat.location == companionLocation
     local spellPlaying = cat.location == "spell" and GetTime() < spellPlayback.visibleUntil
-    local shouldShow = previewingConfig or (db.shown and location.enabled and (cat.location == activeLocation or isCompanion or spellPlaying) and not conditionalChatHidden)
+    local locationEnabled = location.enabled
+    if cat.kind == "spell" then locationEnabled = location.catEnabled end
+    local activeHere = cat.location == activeLocation or isCompanion or spellPlaying
+    local spellDisplayEnabled = cat.kind == "spell" and (location.catEnabled or location.iconEnabled)
+    local spellShouldDisplay = previewingConfig or (db.shown and spellDisplayEnabled and activeHere)
+    local shouldShow = previewingConfig or (db.shown and locationEnabled and activeHere and not conditionalChatHidden)
     if shouldShow then cat:Show() else cat:Hide() end
     if cat.kind == "spell" then
-        if shouldShow then cat.spellIconFrame:Show() else cat.spellIconFrame:Hide() end
+        if spellShouldDisplay and (previewingConfig or location.iconEnabled) then cat.spellIconFrame:Show() else cat.spellIconFrame:Hide() end
     end
 end
 
@@ -339,12 +362,15 @@ local function Trigger(locations, fromSequence)
             end
             ApplyAll()
         end
-        if db.locations[location].enabled then
+        local locationEnabled = db.locations[location].enabled
+        if location == "spell" then locationEnabled = db.locations.spell.catEnabled or db.locations.spell.iconEnabled end
+        if locationEnabled then
             for _, cat in pairs(cats) do
                 if cat.location == location then SetPose(cat, nextPaw); cat.lastHit = now end
                 if cat.location == location then
                     cat.lastActivity = now
                     SetCatAlpha(cat, BaseAlpha(cat))
+                    SetSpellIconAlpha(cat, IconBaseAlpha(cat))
                     if (cat.kind == "action" or cat.kind == "chat") and not db.locations[cat.location].locked then cat:EnableMouse(true) end
                 end
             end
@@ -365,7 +391,7 @@ local function TriggerGlobal(condition)
 end
 
 local function TriggerSpell(spellID, icon)
-    if not db.locations.spell.enabled then return end
+    if not (db.locations.spell.catEnabled or db.locations.spell.iconEnabled) then return end
     local now = GetTime()
     local texture = icon or (spellID and GetSpellTexture(spellID))
     for _, cat in pairs(cats) do
@@ -588,24 +614,29 @@ local function FadeModeButton(parent, x, y)
     Refresh()
     button:SetScript("OnClick", function()
         db.fade.enabled = not db.fade.enabled
-        if not db.fade.enabled then for _, cat in pairs(cats) do SetCatAlpha(cat, BaseAlpha(cat)) end end
+        if not db.fade.enabled then
+            for _, cat in pairs(cats) do
+                SetCatAlpha(cat, BaseAlpha(cat))
+                SetSpellIconAlpha(cat, IconBaseAlpha(cat))
+            end
+        end
         Refresh()
     end)
 end
 
-local function CycleSpellOpacityButton(parent, x, y)
+local function CycleSpellOpacityButton(parent, x, y, key, label)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(150, 24)
     button:SetPoint("TOPLEFT", x, y)
     local function Refresh()
-        button:SetText(string.format("Opacity: %d%%", (db.locations.spell.opacity or 1.0) * 100))
+        button:SetText(string.format("%s: %d%%", label, (db.locations.spell[key] or 1.0) * 100))
     end
     Refresh()
     button:SetScript("OnClick", function()
         local location = db.locations.spell
         for index, value in ipairs(SPELL_OPACITIES) do
-            if value == location.opacity then
-                location.opacity = SPELL_OPACITIES[index % #SPELL_OPACITIES + 1]
+            if value == location[key] then
+                location[key] = SPELL_OPACITIES[index % #SPELL_OPACITIES + 1]
                 break
             end
         end
@@ -719,7 +750,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (spellSettingsExpanded and 480 or 550))
+    config:SetSize(420, (actionTriggersExpanded or spellTriggersExpanded) and 360 or (spellSettingsExpanded and 540 or 550))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -764,30 +795,32 @@ local function OpenConfig()
             config:Hide(); config = nil; OpenConfig()
         end)
         Label(config, "Drag the cat or icon separately while this window is open.", 18, -84)
-        Checkbox(config, "Enabled", 18, -106, db.locations.spell.enabled, function(value) db.locations.spell.enabled = value; ApplyAll() end)
-        CycleSizeButton(config, "spell", 150, -108, #SIZES)
+        Checkbox(config, "Cat enabled", 18, -106, db.locations.spell.catEnabled, function(value) db.locations.spell.catEnabled = value; ApplyAll() end)
+        Checkbox(config, "Icon enabled", 120, -106, db.locations.spell.iconEnabled, function(value) db.locations.spell.iconEnabled = value; ApplyAll() end)
+        CycleSizeButton(config, "spell", 238, -108, #SIZES)
         ColourButton(config, "spell", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -138)
         ColourButton(config, "spell", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -138)
         CycleLayerButton(config, "spell", 18, -168)
-        CycleSpellOpacityButton(config, 180, -168)
-        Label(config, "Spell icon", 18, -206)
-        CycleSpellIconButton(config, 18, -228, "iconZoom", "Icon zoom", SPELL_ICON_ZOOMS, function(value) return string.format("%d%%", value * 100) end)
-        SpellBorderButton(config, 180, -228)
-        CycleSpellIconButton(config, 18, -258, "iconWidth", "Icon width", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
-        CycleSpellIconButton(config, 180, -258, "iconHeight", "Icon height", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
-        Label(config, "Spell sequence", 18, -296)
-        CycleSequenceButton(config, 18, -318, "minimum", "Sequence min", db.spellSequence)
-        CycleSequenceButton(config, 180, -318, "maximum", "Sequence max", db.spellSequence)
-        CycleSequenceIntervalButton(config, 18, -348, db.spellSequence)
-        CycleSpellHoldButton(config, 180, -348)
+        CycleSpellOpacityButton(config, 180, -168, "catOpacity", "Cat opacity")
+        CycleSpellOpacityButton(config, 18, -198, "iconOpacity", "Icon opacity")
+        Label(config, "Spell icon", 18, -236)
+        CycleSpellIconButton(config, 18, -258, "iconZoom", "Icon zoom", SPELL_ICON_ZOOMS, function(value) return string.format("%d%%", value * 100) end)
+        SpellBorderButton(config, 180, -258)
+        CycleSpellIconButton(config, 18, -288, "iconWidth", "Icon width", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
+        CycleSpellIconButton(config, 180, -288, "iconHeight", "Icon height", SPELL_ICON_DIMENSIONS, function(value) return value .. " px" end)
+        Label(config, "Spell sequence", 18, -326)
+        CycleSequenceButton(config, 18, -348, "minimum", "Sequence min", db.spellSequence)
+        CycleSequenceButton(config, 180, -348, "maximum", "Sequence max", db.spellSequence)
+        CycleSequenceIntervalButton(config, 18, -378, db.spellSequence)
+        CycleSpellHoldButton(config, 180, -378)
         local triggerList = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
-        triggerList:SetSize(190, 24); triggerList:SetPoint("TOPLEFT", 18, -386); triggerList:SetText("Spell triggers")
+        triggerList:SetSize(190, 24); triggerList:SetPoint("TOPLEFT", 18, -416); triggerList:SetText("Spell triggers")
         triggerList:SetScript("OnClick", function()
             spellSettingsExpanded = false
             spellTriggersExpanded = true
             config:Hide(); config = nil; OpenConfig()
         end)
-        Label(config, "Pick casts, buffs, and debuffs in the trigger list.", 18, -416)
+        Label(config, "Pick casts, buffs, and debuffs in the trigger list.", 18, -446)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
@@ -972,9 +1005,12 @@ Controller:SetScript("OnUpdate", function()
         if cat.location == "spell" and now < spellPlayback.visibleUntil then
             cat.lastActivity = now
             SetCatAlpha(cat, BaseAlpha(cat))
+            SetSpellIconAlpha(cat, IconBaseAlpha(cat))
         elseif db.fade.enabled and cat:IsShown() and not cat.dragging and not (config and config:IsShown()) then
             local fadeProgress = (now - cat.lastActivity - db.fade.delay) / db.fade.duration
-            SetCatAlpha(cat, BaseAlpha(cat) * math.max(0, math.min(1, 1 - fadeProgress)))
+            local fadeAlpha = math.max(0, math.min(1, 1 - fadeProgress))
+            SetCatAlpha(cat, BaseAlpha(cat) * fadeAlpha)
+            SetSpellIconAlpha(cat, IconBaseAlpha(cat) * fadeAlpha)
             if (cat.kind == "action" or cat.kind == "chat") and cat:GetAlpha() <= 0.01 then cat:EnableMouse(false) end
         end
     end
