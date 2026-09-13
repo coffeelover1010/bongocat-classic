@@ -166,7 +166,8 @@ local function ApplyCat(cat)
     end
     if cat.kind == "chat" or cat.kind == "action" then cat:EnableMouse(db.shown and location.enabled and not location.locked) end
     local conditionalChatHidden = cat.location == "chat" and location.onlyWhileEditing and not ChatInputOpen()
-    if db.shown and location.enabled and cat.location == activeLocation and not conditionalChatHidden then cat:Show() else cat:Hide() end
+    local previewingConfig = config and config:IsShown()
+    if previewingConfig or (db.shown and location.enabled and cat.location == activeLocation and not conditionalChatHidden) then cat:Show() else cat:Hide() end
 end
 
 local function ApplyAll()
@@ -501,7 +502,9 @@ local function OpenConfig()
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
         for _, cat in pairs(cats) do cat:SetAlpha(1) end
+        ApplyAll()
     end)
+    config:SetScript("OnHide", function() ApplyAll() end)
     config:SetMovable(true); config:EnableMouse(true); config:RegisterForDrag("LeftButton")
     config:SetScript("OnDragStart", config.StartMoving)
     config:SetScript("OnDragStop", config.StopMovingOrSizing)
@@ -531,6 +534,7 @@ local function OpenConfig()
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
+        ApplyAll()
         return
     end
     Label(config, "Chat cat — reacts to typing", 18, -52)
@@ -583,6 +587,7 @@ local function OpenConfig()
     local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
     close:SetScript("OnClick", function() config:Hide() end)
+    ApplyAll()
 end
 
 local function Help()
