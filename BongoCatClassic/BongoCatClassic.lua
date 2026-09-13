@@ -187,6 +187,20 @@ local function OnChatEdited(editBox)
     if editBox and editBox:HasFocus() then Trigger({ "chat" }) end
 end
 
+local function HookChatEditBoxes()
+    -- Direct edit-box hooks are more reliable across Classic UI versions than relying on
+    -- the ChatEdit_OnTextChanged helper being invoked as a global function.
+    for index = 1, NUM_CHAT_WINDOWS do
+        local editBox = _G["ChatFrame" .. index .. "EditBox"]
+        if editBox and not editBox.BongoCatClassicHooked then
+            editBox.BongoCatClassicHooked = true
+            editBox:HookScript("OnTextChanged", function(self, userInput)
+                if userInput and self:HasFocus() then Trigger({ "chat" }) end
+            end)
+        end
+    end
+end
+
 local function Label(parent, text, x, y)
     local label = parent:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     label:SetPoint("TOPLEFT", x, y)
@@ -409,7 +423,7 @@ Controller:SetScript("OnEvent", function(_, event, unit)
         CreateCat("Chat", "chat", "chat")
         CreateCat("Action", "action", "action")
         ApplyAll()
-        if type(ChatEdit_OnTextChanged) == "function" then hooksecurefunc("ChatEdit_OnTextChanged", OnChatEdited) end
+        HookChatEditBoxes()
         Print("loaded. Use /bc config to place and size cats.")
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         if unit == "player" then TriggerGlobal() end
