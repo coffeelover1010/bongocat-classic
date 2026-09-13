@@ -8,6 +8,7 @@ local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
 local spellPlayback = { remaining = 0, nextAt = 0, visibleUntil = 0 }
 local startedSpellCasts = {}
+local lastAuraTrigger = 0
 local activeLocation = "chat"
 local companionLocation = "chat"
 
@@ -66,6 +67,7 @@ local DEFAULTS = {
     fade = { enabled = true, delay = 5, duration = 0.5 },
     actionSequence = { minimum = 5, maximum = 5, interval = 0.12 },
     spellSequence = { minimum = 5, maximum = 5, interval = 0.12, hold = 1.5 },
+    spellAuraTriggers = { buffs = false, debuffs = false },
     actionTriggers = ACTION_TRIGGER_DEFAULTS,
     locations = {
         chat = { enabled = true, onlyWhileEditing = false, size = 3, locked = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
@@ -102,6 +104,9 @@ local function CopyDefaults()
         if BongoCatClassicDB.spellSequence[key] == nil then BongoCatClassicDB.spellSequence[key] = value end
     end
     if BongoCatClassicDB.spellSequence.interval > 0.20 then BongoCatClassicDB.spellSequence.interval = 0.20 end
+    BongoCatClassicDB.spellAuraTriggers = BongoCatClassicDB.spellAuraTriggers or {}
+    if BongoCatClassicDB.spellAuraTriggers.buffs == nil then BongoCatClassicDB.spellAuraTriggers.buffs = DEFAULTS.spellAuraTriggers.buffs end
+    if BongoCatClassicDB.spellAuraTriggers.debuffs == nil then BongoCatClassicDB.spellAuraTriggers.debuffs = DEFAULTS.spellAuraTriggers.debuffs end
     BongoCatClassicDB.actionTriggers = BongoCatClassicDB.actionTriggers or {}
     for key, value in pairs(ACTION_TRIGGER_DEFAULTS) do
         if BongoCatClassicDB.actionTriggers[key] == nil then BongoCatClassicDB.actionTriggers[key] = value end
@@ -333,10 +338,10 @@ local function TriggerGlobal(condition)
     globalSequence.nextAt = now + db.actionSequence.interval
 end
 
-local function TriggerSpell(spellID)
+local function TriggerSpell(spellID, icon)
     if not db.locations.spell.enabled then return end
     local now = GetTime()
-    local texture = spellID and GetSpellTexture(spellID)
+    local texture = icon or (spellID and GetSpellTexture(spellID))
     for _, cat in pairs(cats) do
         if cat.location == "spell" and cat.spellIconFrame then
             cat.spellIconFrame.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -347,6 +352,31 @@ local function TriggerSpell(spellID)
     spellPlayback.remaining = math.max(spellPlayback.remaining, steps - 1)
     spellPlayback.nextAt = now + db.spellSequence.interval
     spellPlayback.visibleUntil = now + steps * db.spellSequence.interval + db.spellSequence.hold
+end
+
+local function TriggerAura(aura)
+    if not aura then return false end
+    local harmful = aura.isHarmful
+    local enabled = harmful and db.spellAuraTriggers.debuffs or (not harmful and db.spellAuraTriggers.buffs)
+    if not enabled then return false end
+    local now = GetTime()
+    if now - lastAuraTrigger < 0.25 then return false end
+    lastAuraTrigger = now
+    TriggerSpell(aura.spellId, aura.icon)
+    return true
+end
+
+local function HandlePlayerAuras(updateInfo)
+    if updateInfo and updateInfo.addedAuras then
+        for _, aura in ipairs(updateInfo.addedAuras) do
+            if TriggerAura(aura) then return end
+        end
+        return
+    end
+    -- Fallback for Classic clients that report a full aura update without added-aura data.
+    if not C_UnitAuras or not C_UnitAuras.GetAuraDataByIndex then return end
+    if db.spellAuraTriggers.buffs and TriggerAura(C_UnitAuras.GetAuraDataByIndex("player", 1, "HELPFUL")) then return end
+    if db.spellAuraTriggers.debuffs then TriggerAura(C_UnitAuras.GetAuraDataByIndex("player", 1, "HARMFUL")) end
 end
 
 local function OnChatEdited(editBox)
@@ -663,7 +693,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 500 or 550))
+    config:SetSize(420, actionTriggersExpanded and 360 or (spellSettingsExpanded and 530 or 550))
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -702,6 +732,9 @@ local function OpenConfig()
         CycleSequenceButton(config, 180, -318, "maximum", "Sequence max", db.spellSequence)
         CycleSequenceIntervalButton(config, 18, -348, db.spellSequence)
         CycleSpellHoldButton(config, 180, -348)
+        Label(config, "Aura triggers (your character)", 18, -386)
+        Checkbox(config, "Buff gained", 18, -408, db.spellAuraTriggers.buffs, function(value) db.spellAuraTriggers.buffs = value end)
+        Checkbox(config, "Debuff gained", 180, -408, db.spellAuraTriggers.debuffs, function(value) db.spellAuraTriggers.debuffs = value end)
         local close = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
         close:SetSize(75, 22); close:SetPoint("BOTTOMRIGHT", -20, 18); close:SetText("Close")
         close:SetScript("OnClick", function() config:Hide() end)
@@ -815,6 +848,7 @@ Controller:RegisterEvent("PLAYER_REGEN_DISABLED")
 Controller:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 Controller:RegisterEvent("UNIT_SPELLCAST_START")
 Controller:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+Controller:RegisterEvent("UNIT_AURA")
 Controller:RegisterEvent("UNIT_COMBAT")
 Controller:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 Controller:RegisterEvent("BAG_UPDATE_DELAYED")
@@ -845,6 +879,8 @@ Controller:SetScript("OnEvent", function(_, event, unit, castGUID, spellID)
             if castGUID then startedSpellCasts[castGUID] = true end
             TriggerGlobal("channelStart"); TriggerSpell(spellID)
         end
+    elseif event == "UNIT_AURA" then
+        if unit == "player" then HandlePlayerAuras(castGUID) end
     elseif event == "UNIT_COMBAT" then
         if unit == "player" then TriggerGlobal("combat") end
     elseif event == "PLAYER_STARTED_MOVING" then
