@@ -12,6 +12,13 @@ local FILL_COLOURS = {
     none = { label = "None", r = 1.00, g = 1.00, b = 1.00, a = 0 },
 }
 local FILL_ORDER = { "cream", "white", "grey", "none" }
+local OUTLINE_COLOURS = {
+    ink = { label = "Soft black", r = 0.075, g = 0.075, b = 0.090, a = 1 },
+    black = { label = "Black", r = 0.00, g = 0.00, b = 0.00, a = 1 },
+    brown = { label = "Brown", r = 0.24, g = 0.16, b = 0.14, a = 1 },
+    slate = { label = "Slate", r = 0.16, g = 0.19, b = 0.23, a = 1 },
+}
+local OUTLINE_ORDER = { "ink", "black", "brown", "slate" }
 local LAYER_NAMES = { MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog", TOOLTIP = "On top" }
 local LAYER_ORDER = { "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }
 -- Dimensions are UI units before the target frame's effective scale is applied.
@@ -23,11 +30,11 @@ local SIZES = {
     { width = 104, height = 52 },
 }
 local DEFAULTS = {
-    layoutVersion = 5,
+    layoutVersion = 6,
     shown = true,
     locations = {
-        chat = { enabled = true, size = 3, fill = "cream", strata = "TOOLTIP" },
-        action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", strata = "TOOLTIP" },
+        chat = { enabled = true, size = 3, fill = "cream", outline = "ink", strata = "TOOLTIP" },
+        action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", outline = "ink", strata = "TOOLTIP" },
     },
 }
 
@@ -69,6 +76,8 @@ local function ApplyCat(cat)
     cat:SetFrameLevel(100)
     local fill = FILL_COLOURS[location.fill] or FILL_COLOURS.cream
     cat.fill:SetVertexColor(fill.r, fill.g, fill.b, fill.a)
+    local outline = OUTLINE_COLOURS[location.outline] or OUTLINE_COLOURS.ink
+    cat.art:SetVertexColor(outline.r, outline.g, outline.b, outline.a)
     -- UIParent and Blizzard frames may use different scales. Match the target's scale so
     -- a "medium" cat remains medium beside the frame it is attached to.
     cat:SetScale(target:GetEffectiveScale() / UIParent:GetEffectiveScale())
@@ -211,10 +220,28 @@ local function CycleLayerButton(parent, name, x, y)
     end)
 end
 
+local function CycleOutlineButton(parent, name, x, y)
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetSize(155, 24)
+    button:SetPoint("TOPLEFT", x, y)
+    local function Refresh()
+        button:SetText("Outline: " .. OUTLINE_COLOURS[db.locations[name].outline].label)
+    end
+    Refresh()
+    button:SetScript("OnClick", function()
+        local location = db.locations[name]
+        for index, key in ipairs(OUTLINE_ORDER) do
+            if key == location.outline then location.outline = OUTLINE_ORDER[index % #OUTLINE_ORDER + 1]; break end
+        end
+        Refresh()
+        ApplyAll()
+    end)
+end
+
 local function OpenConfig()
     if config then config:Show(); return end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 330)
+    config:SetSize(420, 390)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetMovable(true); config:EnableMouse(true); config:RegisterForDrag("LeftButton")
@@ -231,18 +258,20 @@ local function OpenConfig()
     CycleSizeButton(config, "chat", 190, -102)
     CycleFillButton(config, "chat", 18, -132)
     CycleLayerButton(config, "chat", 130, -132)
-    Label(config, "Action cat — reacts to player actions", 18, -174)
-    Checkbox(config, "Enabled", 18, -196, db.locations.action.enabled, function(value)
+    CycleOutlineButton(config, "chat", 18, -162)
+    Label(config, "Action cat — reacts to player actions", 18, -204)
+    Checkbox(config, "Enabled", 18, -226, db.locations.action.enabled, function(value)
         db.locations.action.enabled = value; ApplyAll()
     end)
-    Checkbox(config, "Lock position", 110, -196, db.locations.action.locked, function(value)
+    Checkbox(config, "Lock position", 110, -226, db.locations.action.locked, function(value)
         db.locations.action.locked = value
         ApplyAll()
     end)
-    CycleSizeButton(config, "action", 238, -198)
-    CycleFillButton(config, "action", 18, -228)
-    CycleLayerButton(config, "action", 130, -228)
-    Label(config, "Drag the action cat directly; lock it when positioned.", 18, -264)
+    CycleSizeButton(config, "action", 238, -228)
+    CycleFillButton(config, "action", 18, -258)
+    CycleLayerButton(config, "action", 130, -258)
+    CycleOutlineButton(config, "action", 18, -288)
+    Label(config, "Drag the action cat directly; lock it when positioned.", 18, -324)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
