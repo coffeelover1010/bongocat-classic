@@ -74,6 +74,14 @@ local function SetPose(cat, pose)
     cat.fill:SetTexCoord(left, left + 0.25, 0.25, 0.75)
 end
 
+local function ClampChatLocation(location, size)
+    -- The draggable chat cat may occupy the entire chat frame plus a 20% margin on every side.
+    local marginX = ChatFrame1:GetWidth() * 0.20
+    local marginY = ChatFrame1:GetHeight() * 0.20
+    location.x = math.max(-marginX, math.min(ChatFrame1:GetWidth() + marginX - size.width, location.x or 0))
+    location.y = math.max(-marginY, math.min(ChatFrame1:GetHeight() + marginY - size.height, location.y or 0))
+end
+
 local function ApplyCat(cat)
     local location = db.locations[cat.location]
     local size = SIZES[location.size]
@@ -94,7 +102,8 @@ local function ApplyCat(cat)
     cat:SetScale(target:GetEffectiveScale() / UIParent:GetEffectiveScale())
     cat:ClearAllPoints()
     if cat.kind == "chat" then
-        -- Keep the chat cat's attachment point inside the chat window's lower 20% band.
+        ClampChatLocation(location, size)
+        -- Anchor to the chat frame after clamping to its padded drag area.
         cat:SetPoint("BOTTOMLEFT", ChatFrame1, "BOTTOMLEFT", location.x, location.y)
     elseif location.placed then
         cat:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", location.x, location.y)
@@ -133,8 +142,9 @@ local function CreateCat(key, location, kind)
                 local scale = ChatFrame1:GetEffectiveScale()
                 local x = (self:GetLeft() - ChatFrame1:GetLeft()) / scale
                 local y = (self:GetBottom() - ChatFrame1:GetBottom()) / scale
-                location.x = math.max(0, math.min(math.floor(ChatFrame1:GetWidth() * 0.20), math.floor(x + 0.5)))
-                location.y = math.max(0, math.min(math.floor(ChatFrame1:GetHeight() * 0.20), math.floor(y + 0.5)))
+                location.x = x
+                location.y = y
+                ClampChatLocation(location, SIZES[location.size])
                 ApplyCat(self)
             else
                 local scale = UIParent:GetEffectiveScale()
