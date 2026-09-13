@@ -415,8 +415,15 @@ end
 
 Controller:RegisterEvent("PLAYER_LOGIN")
 Controller:RegisterEvent("PLAYER_STARTED_MOVING")
+Controller:RegisterEvent("PLAYER_STARTED_TURNING")
 Controller:RegisterEvent("PLAYER_TARGET_CHANGED")
+Controller:RegisterEvent("PLAYER_REGEN_DISABLED")
 Controller:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+Controller:RegisterEvent("UNIT_SPELLCAST_START")
+Controller:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+Controller:RegisterEvent("UNIT_COMBAT")
+Controller:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+Controller:RegisterEvent("BAG_UPDATE_DELAYED")
 Controller:SetScript("OnEvent", function(_, event, unit)
     if event == "PLAYER_LOGIN" then
         CopyDefaults()
@@ -424,8 +431,10 @@ Controller:SetScript("OnEvent", function(_, event, unit)
         CreateCat("Action", "action", "action")
         ApplyAll()
         HookChatEditBoxes()
+        -- Covers action-bar mouse clicks and bound action keys in addition to cast events.
+        if type(UseAction) == "function" then hooksecurefunc("UseAction", TriggerGlobal) end
         Print("loaded. Use /bc config to place and size cats.")
-    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" or event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_COMBAT" then
         if unit == "player" then TriggerGlobal() end
     else
         TriggerGlobal()

@@ -20,7 +20,7 @@ A Bongo Cat animation for World of Warcraft Classic. The add-on uses the MIT-lic
 
 ## Test notes
 
-The draggable chat cat is constrained to the complete Blizzard chat window plus a 20% margin on every side and listens only for changes to its active edit box; it does not read or store what you type. The draggable action cat responds to player movement, target changes, and completed spell casts, with a short pacing gate so rapid input remains readable. Both start on the top UI layer with a warm cream fill and soft-black outline, and fade after five seconds of inactivity by default; locking either cat makes it click-through. Please report the exact Classic client version and any error message if an animation does not fire.
+The draggable chat cat is constrained to the complete Blizzard chat window plus a 20% margin on every side and listens only for changes to its active edit box; it does not read or store what you type. The draggable action cat responds to action-bar use, spell casts/channels, combat events, movement/turning, target changes, equipment changes, and bag updates, with a short pacing gate so rapid input remains readable. Both start on the top UI layer with a warm cream fill and soft-black outline, and fade after five seconds of inactivity by default; locking either cat makes it click-through. Please report the exact Classic client version and any error message if an animation does not fire.
 
 Each T-shirt size uses a precomputed TGA texture atlas created with Lanczos resampling, rather than relying entirely on live texture downscaling.
 
