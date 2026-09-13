@@ -256,7 +256,17 @@ local function HookChatEditBoxes()
                 if userInput and self:HasFocus() then Trigger({ "chat" }) end
             end)
             editBox:HookScript("OnShow", function()
-                if db.locations.chat.onlyWhileEditing then ApplyAll() end
+                if db.locations.chat.onlyWhileEditing then
+                    activeLocation = "chat"
+                    local now = GetTime()
+                    for _, cat in pairs(cats) do
+                        if cat.location == "chat" then
+                            cat.lastActivity = now
+                            cat:SetAlpha(1)
+                        end
+                    end
+                    ApplyAll()
+                end
             end)
             editBox:HookScript("OnHide", function()
                 if db.locations.chat.onlyWhileEditing then ApplyAll() end
@@ -523,7 +533,7 @@ local function OpenConfig()
     end)
     local lowerControlsY = -354
     Label(config, "Drag either cat directly; lock it when positioned.", 18, lowerControlsY)
-    Checkbox(config, "Fade after inactivity", 18, lowerControlsY - 30, db.fade.enabled, function(value)
+    Checkbox(config, "Both cats fade after inactivity", 18, lowerControlsY - 30, db.fade.enabled, function(value)
         db.fade.enabled = value
         if not value then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
     end)
