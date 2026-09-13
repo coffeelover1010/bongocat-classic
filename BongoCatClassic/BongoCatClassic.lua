@@ -1,6 +1,7 @@
 local addonName = ...
 local Controller = CreateFrame("Frame", addonName .. "Controller")
 local db, config
+local actionTriggersExpanded = false
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 local globalSequence = { remaining = 0, nextAt = 0 }
@@ -450,7 +451,7 @@ local function OpenConfig()
         return
     end
     config = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    config:SetSize(420, 700)
+    config:SetSize(420, actionTriggersExpanded and 700 or 550)
     config:SetPoint("CENTER")
     config:SetFrameStrata("DIALOG")
     config:SetScript("OnShow", function()
@@ -488,28 +489,38 @@ local function OpenConfig()
     ColourButton(config, "action", "fillColour", FILL_COLOURS.cream, "Fill colour", 18, -260)
     ColourButton(config, "action", "outlineColour", OUTLINE_COLOURS.ink, "Outline colour", 160, -260)
     CycleLayerButton(config, "action", 18, -290)
-    Label(config, "Action-cat triggers", 18, -326)
-    Checkbox(config, "Action bar use", 18, -348, db.actionTriggers.actionBar, function(value) db.actionTriggers.actionBar = value end)
-    Checkbox(config, "Spell cast starts", 18, -372, db.actionTriggers.castStart, function(value) db.actionTriggers.castStart = value end)
-    Checkbox(config, "Spell cast completes", 18, -396, db.actionTriggers.castSuccess, function(value) db.actionTriggers.castSuccess = value end)
-    Checkbox(config, "Channel starts", 18, -420, db.actionTriggers.channelStart, function(value) db.actionTriggers.channelStart = value end)
-    Checkbox(config, "Combat damage", 18, -444, db.actionTriggers.combat, function(value) db.actionTriggers.combat = value end)
-    Checkbox(config, "Enter combat", 18, -468, db.actionTriggers.enterCombat, function(value) db.actionTriggers.enterCombat = value end)
-    Checkbox(config, "Movement", 200, -348, db.actionTriggers.movement, function(value) db.actionTriggers.movement = value end)
-    Checkbox(config, "Turning", 200, -372, db.actionTriggers.turning, function(value) db.actionTriggers.turning = value end)
-    Checkbox(config, "Target changes", 200, -396, db.actionTriggers.targetChange, function(value) db.actionTriggers.targetChange = value end)
-    Checkbox(config, "Equipment changes", 200, -420, db.actionTriggers.equipment, function(value) db.actionTriggers.equipment = value end)
-    Checkbox(config, "Bag updates", 200, -444, db.actionTriggers.bags, function(value) db.actionTriggers.bags = value end)
-    Label(config, "Drag either cat directly; lock it when positioned.", 18, -502)
-    Checkbox(config, "Fade after inactivity", 18, -532, db.fade.enabled, function(value)
+    local triggerToggle = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
+    triggerToggle:SetSize(190, 22); triggerToggle:SetPoint("TOPLEFT", 18, -318)
+    triggerToggle:SetText(actionTriggersExpanded and "Action-cat triggers: hide" or "Action-cat triggers: show")
+    triggerToggle:SetScript("OnClick", function()
+        actionTriggersExpanded = not actionTriggersExpanded
+        config:Hide(); config = nil; OpenConfig()
+    end)
+    local lowerControlsY = -354
+    if actionTriggersExpanded then
+        Checkbox(config, "Action bar use", 18, -348, db.actionTriggers.actionBar, function(value) db.actionTriggers.actionBar = value end)
+        Checkbox(config, "Spell cast starts", 18, -372, db.actionTriggers.castStart, function(value) db.actionTriggers.castStart = value end)
+        Checkbox(config, "Spell cast completes", 18, -396, db.actionTriggers.castSuccess, function(value) db.actionTriggers.castSuccess = value end)
+        Checkbox(config, "Channel starts", 18, -420, db.actionTriggers.channelStart, function(value) db.actionTriggers.channelStart = value end)
+        Checkbox(config, "Combat damage", 18, -444, db.actionTriggers.combat, function(value) db.actionTriggers.combat = value end)
+        Checkbox(config, "Enter combat", 18, -468, db.actionTriggers.enterCombat, function(value) db.actionTriggers.enterCombat = value end)
+        Checkbox(config, "Movement", 200, -348, db.actionTriggers.movement, function(value) db.actionTriggers.movement = value end)
+        Checkbox(config, "Turning", 200, -372, db.actionTriggers.turning, function(value) db.actionTriggers.turning = value end)
+        Checkbox(config, "Target changes", 200, -396, db.actionTriggers.targetChange, function(value) db.actionTriggers.targetChange = value end)
+        Checkbox(config, "Equipment changes", 200, -420, db.actionTriggers.equipment, function(value) db.actionTriggers.equipment = value end)
+        Checkbox(config, "Bag updates", 200, -444, db.actionTriggers.bags, function(value) db.actionTriggers.bags = value end)
+        lowerControlsY = -502
+    end
+    Label(config, "Drag either cat directly; lock it when positioned.", 18, lowerControlsY)
+    Checkbox(config, "Fade after inactivity", 18, lowerControlsY - 30, db.fade.enabled, function(value)
         db.fade.enabled = value
         if not value then for _, cat in pairs(cats) do cat:SetAlpha(1) end end
     end)
-    CycleFadeButton(config, 18, -562, "Fade delay", FADE_DELAYS, "delay", "s")
-    CycleFadeButton(config, 190, -562, "Fade time", FADE_DURATIONS, "duration", "s")
-    CycleSequenceButton(config, 18, -592, "minimum", "Sequence min")
-    CycleSequenceButton(config, 180, -592, "maximum", "Sequence max")
-    CycleSequenceIntervalButton(config, 18, -622)
+    CycleFadeButton(config, 18, lowerControlsY - 60, "Fade delay", FADE_DELAYS, "delay", "s")
+    CycleFadeButton(config, 190, lowerControlsY - 60, "Fade time", FADE_DURATIONS, "duration", "s")
+    CycleSequenceButton(config, 18, lowerControlsY - 90, "minimum", "Sequence min")
+    CycleSequenceButton(config, 180, lowerControlsY - 90, "maximum", "Sequence max")
+    CycleSequenceIntervalButton(config, 18, lowerControlsY - 120)
     local reset = CreateFrame("Button", nil, config, "UIPanelButtonTemplate")
     reset:SetSize(135, 22); reset:SetPoint("BOTTOMLEFT", 20, 18); reset:SetText("Reset placements")
     reset:SetScript("OnClick", function() db.locations = {}; db.layoutVersion = 0; CopyDefaults(); ApplyAll(); config:Hide(); config = nil; OpenConfig() end)
