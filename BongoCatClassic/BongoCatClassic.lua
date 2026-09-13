@@ -51,17 +51,17 @@ local SPELL_ICON_ZOOMS = { 0.00, 0.05, 0.10, 0.15, 0.20 }
 local SPELL_ICON_DIMENSIONS = { 32, 40, 48, 64, 80, 96, 112, 128 }
 local SPELL_BUBBLE_DIMENSIONS = { 160, 200, 240, 280, 320 }
 local SPEECH_BUBBLE_STYLES = {
-    oval = { label = "Oval tail", id = 1 },
-    round = { label = "Round tail", id = 2 },
+    round = { label = "Round tail", id = 1 },
+    oval = { label = "Oval tail", id = 2 },
     cloud = { label = "Cloud", id = 3 },
-    softBurst = { label = "Soft burst", id = 4 },
-    box = { label = "Box tail", id = 5 },
-    ellipse = { label = "Ellipse tail", id = 6 },
-    comicBurst = { label = "Comic burst", id = 7 },
-    thought = { label = "Thought cloud", id = 8 },
-    jaggedBurst = { label = "Jagged burst", id = 9 },
+    ellipse = { label = "Ellipse tail", id = 4 },
+    softBurst = { label = "Soft burst", id = 5 },
+    box = { label = "Box tail", id = 6 },
+    jaggedBurst = { label = "Jagged burst", id = 7 },
+    comicBurst = { label = "Comic burst", id = 8 },
+    thought = { label = "Thought cloud", id = 9 },
 }
-local SPEECH_BUBBLE_STYLE_ORDER = { "oval", "round", "cloud", "softBurst", "box", "ellipse", "comicBurst", "thought", "jaggedBurst" }
+local SPEECH_BUBBLE_STYLE_ORDER = { "oval", "round", "cloud", "ellipse", "softBurst", "box", "jaggedBurst", "comicBurst", "thought" }
 local SPELL_BORDER_STYLES = {
     quickslot = { label = "Quickslot", texture = "Interface\\Buttons\\UI-Quickslot2", padding = 5 },
     action = { label = "Action-bar gold", texture = "Interface\\Buttons\\UI-ActionButton-Border", padding = 4 },
