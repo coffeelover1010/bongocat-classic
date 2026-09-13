@@ -4,7 +4,7 @@ local db, config
 local cats = {}
 local nextPaw, lastGlobalInput = 1, 0
 
-local SIZE_NAMES = { "Small", "Medium", "Large" }
+local SIZE_NAMES = { "XS", "S", "M", "L", "XL" }
 local FILL_COLOURS = {
     cream = { label = "Cream", r = 1.00, g = 0.96, b = 0.86, a = 1 },
     white = { label = "White", r = 1.00, g = 1.00, b = 1.00, a = 1 },
@@ -15,13 +15,19 @@ local FILL_ORDER = { "cream", "white", "grey", "none" }
 local LAYER_NAMES = { MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog", TOOLTIP = "On top" }
 local LAYER_ORDER = { "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }
 -- Dimensions are UI units before the target frame's effective scale is applied.
-local SIZES = { { width = 72, height = 36 }, { width = 108, height = 54 }, { width = 150, height = 75 } }
+local SIZES = {
+    { width = 42, height = 21 },
+    { width = 56, height = 28 },
+    { width = 72, height = 36 },
+    { width = 88, height = 44 },
+    { width = 104, height = 52 },
+}
 local DEFAULTS = {
-    layoutVersion = 4,
+    layoutVersion = 5,
     shown = true,
     locations = {
-        chat = { enabled = true, size = 2, fill = "cream", strata = "TOOLTIP" },
-        action = { enabled = true, size = 2, locked = false, placed = false, x = 0, y = 0, fill = "cream", strata = "TOOLTIP" },
+        chat = { enabled = true, size = 3, fill = "cream", strata = "TOOLTIP" },
+        action = { enabled = true, size = 3, locked = false, placed = false, x = 0, y = 0, fill = "cream", strata = "TOOLTIP" },
     },
 }
 
@@ -32,6 +38,7 @@ end
 local function CopyDefaults()
     BongoCatClassicDB = BongoCatClassicDB or {}
     local migrateLayout = (BongoCatClassicDB.layoutVersion or 0) < 3
+    local migrateSizes = (BongoCatClassicDB.layoutVersion or 0) < 5
     if BongoCatClassicDB.shown == nil then BongoCatClassicDB.shown = DEFAULTS.shown end
     BongoCatClassicDB.locations = BongoCatClassicDB.locations or {}
     for name, defaults in pairs(DEFAULTS.locations) do
@@ -40,6 +47,7 @@ local function CopyDefaults()
         for key, value in pairs(defaults) do
             if migrateLayout or location[key] == nil then location[key] = value end
         end
+        if migrateSizes and not migrateLayout and location.size then location.size = math.min(location.size + 1, #SIZES) end
     end
     BongoCatClassicDB.layoutVersion = DEFAULTS.layoutVersion
     db = BongoCatClassicDB
@@ -161,7 +169,7 @@ local function CycleSizeButton(parent, name, x, y)
     Refresh()
     button:SetScript("OnClick", function()
         local location = db.locations[name]
-        location.size = location.size % 3 + 1
+        location.size = location.size % #SIZES + 1
         Refresh()
         ApplyAll()
     end)
